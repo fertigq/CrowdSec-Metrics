@@ -1,114 +1,129 @@
 #!/bin/bash
+set -euo pipefail
 
 # Function to display a spinner
 spinner() {
   local pid=$1
+  local msg=$2
   local delay=0.1
-  local spinner=( '|' '/' '-' '\' )
+  local spinner=('|' '/' '-' '\')
+  local i=0
 
-  while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-    for i in "${spinner[@]}"; do
-      printf "\r[%c] %s" "$i" "$2"
-      sleep $delay
-    done
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r[%s] %s" "${spinner[i]}" "$msg"
+    sleep "$delay"
+    i=$(( (i+1) % 4 ))
   done
-  printf "\r[✔] %s\n" "$2"
+  printf "\r[✔] %s\n" "$msg"
 }
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root"
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+
+# Check root privileges
+if [[ $EUID -ne 0 ]]; then
+  echo "❌ Please run as root" >&2
   exit 1
 fi
 
-# Check if user already exists
+# Create dedicated user
 if ! id "crowdsec-dashboard" &>/dev/null; then
+  echo "Creating service user..."
   useradd -r -s /bin/false crowdsec-dashboard
-  usermod -aG docker crowdsec-dashboard
+  usermod -aG docker crowdsec-dashboard || echo "⚠️  Docker group not found, continuing anyway"
 else
-  echo "User 'crowdsec-dashboard' already exists"
+  echo "ℹ️  User 'crowdsec-dashboard' already exists"
 fi
 
-# Create application directory if it doesn't exist
-if [ ! -d "/opt/crowdsec-metrics" ]; then
-  mkdir -p /opt/crowdsec-metrics
-  chown crowdsec-dashboard:crowdsec-dashboard /opt/crowdsec-metrics
-else
-  echo "Directory /opt/crowdsec-metrics already exists"
-fi
+# Create application directory
+APP_DIR="/opt/crowdsec-metrics"
+mkdir -p "$APP_DIR"
+chown crowdsec-dashboard:crowdsec-dashboard "$APP_DIR"
 
-# Copy files if they don't already exist in the destination
-for file in *; do
-  if [ ! -e "/opt/crowdsec-metrics/$file" ]; then
-    cp -r "$file" /opt/crowdsec-metrics/
+# Copy application files
+echo "📂 Copying files from $SCRIPT_DIR to $APP_DIR..."
+rsync -ah --progress --exclude=.env "$SCRIPT_DIR/" "$APP_DIR/" || {
+  echo "❌ Failed to copy files" >&2
+  exit 1
+}
+
+cd "$APP_DIR"
+
+# Verify critical files exist
+for file in package.json crowdsec-metrics.service .env.example; do
+  if [[ ! -f "$file" ]]; then
+    echo "❌ Missing required file: $file" >&2
+    exit 1
   fi
 done
-cd /opt/crowdsec-metrics
 
-# Install Node.js and npm if not already installed
-if ! command -v npm &> /dev/null; then
-  echo "npm not found, installing Node.js and npm..."
+# Install Node.js if needed
+if ! command -v npm &>/dev/null; then
+  echo "Installing Node.js..."
   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &
-  spinner $! "Setting up NodeSource repository"
-  sudo apt-get install -y nodejs &
+  spinner $! "Configuring NodeSource"
+  apt-get install -y nodejs &
   spinner $! "Installing Node.js"
-else
-  echo "npm already installed"
 fi
 
-# Check if package.json exists
-if [ -e "package.json" ]; then
-  npm install --production &
-  spinner $! "Installing dependencies"
+# Install dependencies
+echo "📦 Installing npm dependencies..."
+sudo -u crowdsec-dashboard npm install --production &
+spinner $! "Installing packages"
+
+# Configure environment file
+if [[ ! -f .env ]]; then
+  cp .env.example .env
+  chown crowdsec-dashboard:crowdsec-dashboard .env
+  chmod 600 .env
+  echo "ℹ️  Created new .env file from example"
 else
-  echo "package.json not found. Please ensure it is present in the directory."
-  exit 1
+  echo "ℹ️  Existing .env file preserved"
 fi
 
-# Create and configure environment file if .env.example exists
-if [ -e ".env.example" ]; then
-  if [ ! -e ".env" ]; then
-    cp .env.example .env
-    chown crowdsec-dashboard:crowdsec-dashboard .env
-    chmod 600 .env
-  else
-    echo ".env file already exists"
-  fi
+# Configure sudo access
+SUDOERS_FILE="/etc/sudoers.d/crowdsec-dashboard"
+if [[ ! -f "$SUDOERS_FILE" ]]; then
+  echo "Configuring sudo privileges..."
+  {
+    echo "crowdsec-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics"
+    echo "crowdsec-dashboard ALL=(root) NOPASSWD: /usr/bin/docker exec crowdsec cscli metrics"
+  } > "$SUDOERS_FILE"
+  chmod 440 "$SUDOERS_FILE"
 else
-  echo ".env.example file not found"
-  exit 1
+  echo "ℹ️  Sudoers configuration already exists"
 fi
 
-# Configure sudo access for metrics commands if not already configured
-if [ ! -e "/etc/sudoers.d/crowdsec-dashboard" ]; then
-  echo "crowdsec-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics" > /etc/sudoers.d/crowdsec-dashboard
-  echo "crowdsec-dashboard ALL=(root) NOPASSWD: /usr/bin/docker exec crowdsec cscli metrics" >> /etc/sudoers.d/crowdsec-dashboard
-else
-  echo "Sudoers configuration for crowdsec-dashboard already exists"
-fi
-
-# Set up the systemd service if it doesn't already exist
-if [ ! -e "/etc/systemd/system/crowdsec-metrics.service" ]; then
-  cp crowdsec-metrics.service /etc/systemd/system/
+# Install systemd service
+SERVICE_FILE="/etc/systemd/system/crowdsec-metrics.service"
+if [[ ! -f "$SERVICE_FILE" ]]; then
+  cp crowdsec-metrics.service "$SERVICE_FILE"
   systemctl daemon-reload
-  systemctl enable crowdsec-metrics
-  systemctl start crowdsec-metrics
+  echo "ℹ️  Systemd service installed"
 else
-  echo "Systemd service for crowdsec-metrics already exists"
+  echo "ℹ️  Systemd service already exists"
 fi
 
-# Configure firewall (assuming UFW) if the rule doesn't already exist
-if ! ufw status | grep -q "3456"; then
-  ufw allow 3456
-else
-  echo "Firewall rule for port 3456 already exists"
+# Enable and restart service
+echo "🔄 Starting service..."
+systemctl enable --now crowdsec-metrics || {
+  echo "❌ Failed to start service" >&2
+  systemctl status crowdsec-metrics || true
+  exit 1
+}
+
+# Configure firewall
+if command -v ufw &>/dev/null && ! ufw status | grep -q 3456/tcp; then
+  ufw allow 3456/tcp
+  echo "🔒 Added firewall rule for port 3456"
 fi
 
-echo "Installation complete. Please edit /opt/crowdsec-metrics/.env to set your admin credentials and other configurations."
-echo "Then, restart the service with: systemctl restart crowdsec-metrics"
+# Final permissions
+chown -R crowdsec-dashboard:crowdsec-dashboard "$APP_DIR"
+find "$APP_DIR" -type d -exec chmod 750 {} \;
+find "$APP_DIR" -type f -exec chmod 640 {} \;
 
-echo "Adjusting permissions..."
-chown -R crowdsec-dashboard:crowdsec-dashboard /opt/crowdsec-metrics
-chmod 750 /opt/crowdsec-metrics
-
-echo "To further restrict access, consider setting up a reverse proxy with HTTPS."
+echo "✅ Installation complete"
+echo "➤ Edit your configuration: sudo nano $APP_DIR/.env"
+echo "➤ Check service status: systemctl status crowdsec-metrics"
+echo "➤ View logs: journalctl -u crowdsec-metrics -f"
