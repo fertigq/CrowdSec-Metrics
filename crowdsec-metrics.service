@@ -1,0 +1,27 @@
+[Unit]
+Description=CrowdSec Metrics Dashboard
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /opt/crowdsec-metrics/src/server.js
+Restart=always
+User=crowdsec-dashboard
+Group=crowdsec-dashboard
+Environment=PATH=/usr/bin:/usr/local/bin
+Environment=NODE_ENV=production
+WorkingDirectory=/opt/crowdsec-metrics
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=crowdsec-metrics
+
+# Security enhancements
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
