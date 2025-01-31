@@ -35,21 +35,34 @@ No persistent data is stored, dependencies are kept to a minimum, and the resour
 
 ```bash
 # Clone repository
-git clone https://github.com/fertigq/crowdsec-metrics.git
-cd crowdsec-metrics
+git clone https://github.com/yourusername/crowdsec-metrics-dashboard.git
+cd crowdsec-metrics-dashboard
+
+# Edit the installation script to bind to your specific IP
+sed -i 's/HOST=0.0.0.0/HOST=YOURSERVERIP/' install.sh
+
+# Review and run the installation script
+cat install.sh
+sudo ./install.sh
+
+# Set permissions if needed
+chmod +x *.sh
 
 # Configure environment
 cp example.env .env
 nano .env  # Set your parameters
 
-# Set permissions if needed
-chmod +x *.sh
+# Ensure the HOST is set to your IP
+HOST=YOURSERVERIP
 
-# Launch dashboard
-./start.sh
+# Update the firewall rules to only allow access from your local network
+sudo ufw allow from 10.10.10.0/24 to any port 3456 proto tcp
+
+# Restart the service
+sudo systemctl restart crowdsec-metrics
 ```
 
-Access the dashboard at: `http://your-server-ip:3456`
+Access the dashboard at: `http://YOURSERVERIP:3456`
 
 ## ⚡ **Configuration Options**
 
@@ -122,4 +135,4 @@ This project is a work in progress. I'm still learning to code, so it will be fa
 
 ---
 
-*This independent tool is not affiliated with CrowdSec. Use at your own risk.*
+*This independent tool is not affiliated with CrowdSec. Use at your own risk.* 
