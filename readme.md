@@ -41,12 +41,14 @@ cd crowdsec-metrics
 # Edit the installation script to bind to your specific IP
 sed -i 's/HOST=localhost/HOST=YOURSERVERIP/' install.sh
 
-# Review and run the installation script
+# Review the installation script
 cat install.sh
-sudo ./install.sh
 
 # Set permissions if needed
 chmod +x *.sh
+
+# Run Installation Script
+sudo ./install.sh
 
 # Configure environment
 cp example.env .env
