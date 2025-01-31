@@ -109,7 +109,7 @@ install_crowdsec_metrics() {
   if [[ $EUID -ne 0 ]]; then
     log_error "Please run as root"
     exit 1
-  }
+  fi
   
   # Initialize installation
   matrix_rain "Initializing CrowdSec Metrics Installation"
@@ -121,7 +121,7 @@ install_crowdsec_metrics() {
   if [[ -z "$CROWDSEC_DIR" ]]; then
     log_error "CrowdSec installation not found!"
     exit 1
-  }
+  fi
   log_success "CrowdSec found at: $CROWDSEC_DIR"
   
   # Create service user
@@ -155,7 +155,7 @@ install_crowdsec_metrics() {
 # CrowdSec Metrics Dashboard Configuration
 
 # Server Host and Port
-HOST=10.10.10.72
+HOST=0.0.0.0
 PORT=3456
 
 # Logging Level (optional: debug, info, warn, error)
@@ -223,7 +223,7 @@ const logger = winston.createLogger({
 });
 
 const app = express();
-const host = process.env.HOST || '10.10.10.72';
+const host = process.env.HOST || '0.0.0.0';
 const port = process.env.PORT || 3456;
 
 app.get('/metrics', (req, res) => {
@@ -249,7 +249,7 @@ EOL
   if ! npm install; then
     log_error "Failed to install dependencies"
     exit 1
-  }
+  fi
   log_success "Dependencies installed successfully"
   
   # Create systemd service file
