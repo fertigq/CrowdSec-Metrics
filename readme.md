@@ -39,7 +39,7 @@ git clone https://github.com/yourusername/crowdsec-metrics-dashboard.git
 cd crowdsec-metrics-dashboard
 
 # Edit the installation script to bind to your specific IP
-sed -i 's/HOST=0.0.0.0/HOST=YOURSERVERIP/' install.sh
+sed -i 's/HOST=localhost/HOST=YOURSERVERIP/' install.sh
 
 # Review and run the installation script
 cat install.sh
@@ -56,7 +56,7 @@ nano .env  # Set your parameters
 HOST=YOURSERVERIP
 
 # Update the firewall rules to only allow access from your local network
-sudo ufw allow from 10.10.10.0/24 to any port 3456 proto tcp
+sudo ufw allow to any port chosen (3456 is the default)
 
 # Restart the service
 sudo systemctl restart crowdsec-metrics
@@ -135,4 +135,4 @@ This project is a work in progress. I'm still learning to code, so it will be fa
 
 ---
 
-*This independent tool is not affiliated with CrowdSec. Use at your own risk.* 
+*This independent tool is not affiliated with CrowdSec. Use at your own risk.*
