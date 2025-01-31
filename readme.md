@@ -39,7 +39,7 @@ This software was developed with the assistance of AI tools:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/crowdsec-metrics-dashboard.git
+   git clone https://github.com/fertigq/crowdsec-metrics-dashboard.git
    cd crowdsec-metrics-dashboard
    ```
 
