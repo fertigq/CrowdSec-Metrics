@@ -41,9 +41,7 @@ systemctl enable crowdsec-metrics
 systemctl start crowdsec-metrics
 
 # Configure firewall (assuming UFW)
-ufw allow from 192.168.0.0/16 to any port 3456 proto tcp comment 'Allow CrowdSec dashboard from local network'
-ufw allow from 172.16.0.0/12 to any port 3456 proto tcp comment 'Allow CrowdSec dashboard from Docker network'
-ufw allow from 10.0.0.0/8 to any port 3456 proto tcp comment 'Allow CrowdSec dashboard from VPN network'
+ufw allow 3456
 
 echo "Installation complete. Please edit /opt/crowdsec-metrics/.env to set your admin credentials and other configurations."
 echo "Then, restart the service with: systemctl restart crowdsec-metrics"
