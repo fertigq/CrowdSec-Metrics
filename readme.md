@@ -1,117 +1,125 @@
-# 🛡️ CrowdSec Metrics Dashboard
+# 🛡️ **CrowdSec Metrics Dashboard**
 
-A simple metrics dashboard that displays CrowdSec data from both your host machine and Docker container. Built to provide a straightforward alternative to more complex monitoring setups.
+A lightweight metrics visualization tool for CrowdSec installations that adds a touch of humor to your monitoring experience. It works with both host and Docker deployments.
 
-## 🎯 What This Is
+## 🎯 **Project Purpose**
 
-This is an independent project that displays metrics from CrowdSec using native commands (`cscli` and `docker exec`). It's designed for users who:
-- Run CrowdSec in Docker but have bouncers on their host machine
-- Want to see metrics from both environments in one place
-- Prefer a simple dashboard over setting up Grafana or other monitoring tools
+**Designed for CrowdSec users who need:**
 
-This is NOT:
-- An official CrowdSec product
-- A replacement for CrowdSec's monitoring capabilities
-- A comprehensive monitoring solution
+- A combined view of host and Docker metrics without the overhead
+- A quick, straightforward health check using simple monitoring tools
 
-## ⚙️ How It Works
+**Not designed for:**
 
-The dashboard pulls metrics using:
-- `cscli metrics` for host machine data
-- `docker exec` commands for container data
+- Enterprise-scale monitoring
+- Long-term metric storage
+- Replacing CrowdSec's native tools
 
-No additional databases or complex setups required - it just reads and displays what CrowdSec already provides.
+## ⚙️ **Technical Overview**
 
-## 📋 Prerequisites
+Pulls metrics directly via:
 
-- CrowdSec installed (host, Docker, or both)
-- Node.js 16+
-- Basic familiarity with CrowdSec
-- Sudo access (for host metrics)
+1. `cscli metrics` for host installations
+2. `docker exec` commands for containerized instances
 
-## 🚀 Quick Start
+No persistent data is stored, dependencies are kept to a minimum, and the resource footprint is very light.
 
-1. Clone and enter the directory:
-   ```bash
-   git clone https://github.com/fertigq/crowdsec-metrics.git
-   cd CrowdSec-Metrics
-   ```
+## 📋 **Requirements**
 
-2. Set up configuration:
-   ```bash
-   cp example.env .env
-   nano .env   # Add your settings
-   ```
+- An operational CrowdSec instance (host or Docker)
+- Node.js 16.x+
+- Sudo access for host metrics collection
+- Docker CLI for container metrics
 
-3. Start the dashboard:
-   ```bash
-   ./start.sh
-   ```
+## 🚀 **Deployment Guide**
 
-4. Access at `http://your-ip:3456`
-
-## ⚡ Configuration
-
-Edit `.env` to set:
 ```bash
-# Required
-CROWDSEC_CONTAINER=your-crowdsec-container-name  # If using Docker
-HOST_METRICS=true/false                         # Enable host metrics
-DOCKER_METRICS=true/false                       # Enable Docker metrics
+# Clone repository
+git clone https://github.com/fertigq/crowdsec-metrics.git
+cd crowdsec-metrics
 
-# Optional
-PORT=3456                                       # Default port
-REFRESH_INTERVAL=30                             # Seconds between updates
+# Configure environment
+cp example.env .env
+nano .env  # Set your parameters
+
+# Set permissions if needed
+chmod +x *.sh
+
+# Launch dashboard
+./start.sh
 ```
 
-## 🔍 Troubleshooting
+Access the dashboard at: `http://your-server-ip:3456`
 
-Common issues:
+## ⚡ **Configuration Options**
 
-1. "Permission denied" for host metrics
-   - Check sudo access
-   - Verify cscli installation
+Edit the `.env` file:
 
-2. Can't connect to Docker
-   - Verify container name
-   - Check Docker socket permissions
+```env
+CROWDSEC_CONTAINER=your_container_name  # Docker only
+HOST_METRICS=true                       # Enable host metrics
+DOCKER_METRICS=false                    # Toggle Docker metrics
+PORT=3456                               # Web interface port
+REFRESH_INTERVAL=30                     # Update frequency in seconds
+```
 
-3. Dashboard shows no data
-   - Confirm CrowdSec is running
-   - Check logs: `tail -f logs/dashboard.log`
+## 📊 **Key Features**
 
-## 🔒 Security Notes
+- Real-time metric aggregation
+- Cross-environment data correlation
+- Mobile-responsive design
+- Minimal CPU/memory usage
+- Optional simple authentication support
 
-- The dashboard only reads metrics - it cannot modify your CrowdSec configuration
-- Restrict dashboard access to trusted networks
-- Use basic auth if exposed beyond localhost
+## 🔒 **Security Advisory**
 
-## 🤝 Contributing
+**Critical Considerations:**
 
-Issues and PRs welcome. Please:
-1. Describe what you're trying to accomplish
-2. Keep changes focused and simple
-3. Test thoroughly
+- Runs with the same privileges as CrowdSec
+- Exposes CrowdSec metric data via a web interface
+- Requires sudo for host metric collection
 
-## 💌 Feedback
+**Recommended Practices:**
 
-This is a work in progress. If you have suggestions or find bugs, please open an issue on GitHub.
+- Restrict access to trusted networks
+- Use a reverse proxy with HTTPS
+- Regularly review update logs
+- Never run as the root user
 
-## 🎨 Features
+## ⚠️ **Precautionary Warning**
 
-- Real-time metrics from both host and Docker
-- Clean, simple interface
-- Easy to set up and maintain
-- Lightweight resource usage
-- Mobile-friendly design
+- **No warranties whatsoever**
 
-## 📊 What You Can Monitor
+Tested only on my Ubuntu Server LTS.
 
-- Decisions and bouncers
-- Top attacked IPs
-- Alert trends
-- Machine status
-- Bouncer status
+**Production Use:** Not recommended for mission-critical systems. If deploying in sensitive environments, please:
+
+1. Implement network isolation
+2. Monitor resource usage closely
+
+## 🔍 **Troubleshooting Guide**
+
+| **Symptom**              | **Checks**                                                                                                                                                                           |
+|--------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **No host metrics**      | Run `sudo cscli metrics` to verify that metrics are being collected. Also, check bouncer registration with `sudo cscli bouncers list`.                                               |
+| **Docker connection issues** | Run `sudo docker exec crowdsec cscli bouncers list` to confirm connectivity. Also, check metrics directly with `sudo docker exec crowdsec cscli metrics`.                       |
+| **Blank dashboard**      | 1. Inspect the browser console for JavaScript errors.<br>2. Verify your configuration settings.<br>3. View logs with `sudo tail -f logs/dashboard.log`.<br>4. Run `sudo cscli alerts list` to see if alerts are being generated. |
+
+## 🤝 **Contribution Guidelines**
+
+Contributions are welcome from developers of all experience levels. Please feel free to submit improvements, bug fixes, or suggestions.
+
+## 📜 **Credits & Recognition**
+
+**Essential Dependencies:**
+
+- [CrowdSec](https://crowdsec.net/) – The core security platform
+- The Node.js ecosystem – For the runtime environment
+
+**Development Acknowledgement:**
+
+This project is a work in progress. I'm still learning to code, so it will be far from perfect, especially since it’s powered by caffeine and mostly ChatGPT.
 
 ---
-*🛡️ This is an independent project and is not affiliated with or endorsed by CrowdSec.*
+
+*This independent tool is not affiliated with CrowdSec. Use at your own risk.*
