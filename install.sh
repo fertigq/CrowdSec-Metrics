@@ -1,93 +1,156 @@
 #!/bin/bash
 set -euo pipefail
 
-# Hacker-style animation function
-hacker_animation() {
-  local msg=$1
-  local chars=('|' '/' '-' '\')
-  local hacker_chars=('01' '10' '001' '110' '0101' '1010')
-  local delay=0.1
-  local i=0
-  local j=0
+# Colors and styling
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
 
-  while true; do
-    printf "\r\033[1;32m[%s] \033[1;37m%s \033[1;32m%s\033[0m" "${hacker_chars[j]}" "$msg" "${chars[i]}"
-    sleep "$delay"
-    i=$(( (i+1) % ${#chars[@]} ))
-    j=$(( (j+1) % ${#hacker_chars[@]} ))
+# Fun ASCII art
+print_banner() {
+  cat << "EOF"
+   _____                     _ _____           
+  / ____|                   | |  __ \          
+ | |     _ __ _____      __| | |__) |_ _ ___ 
+ | |    | '__/ _ \ \ /\ / /| |  ___/ _' / __|
+ | |____| | | (_) \ V  V / | | |  | (_| \__ \
+  \_____|_|  \___/ \_/\_/  |_|_|   \__,_|___/
+                                             
+     🛡️  Metrics Dashboard Installer 🛡️
+EOF
+}
+
+# Matrix-style rain animation
+matrix_rain() {
+  local msg="$1"
+  local cols=$(tput cols)
+  local lines=5
+  local chars=('0' '1' '▀' '▄' '█' '░' '▒' '▓')
+  
+  # Clear previous lines
+  for ((i=0; i<lines; i++)); do
+    echo -en "\033[A\033[K"
   done
+  
+  # Print message in the middle
+  local padding=$(( (cols - ${#msg}) / 2 ))
+  echo -en "\033[${lines}A"
+  echo -en "\033[${padding}C${CYAN}${BOLD}${msg}${NC}\n"
+  
+  # Matrix rain effect
+  for ((i=0; i<4; i++)); do
+    local line=""
+    for ((j=0; j<cols; j++)); do
+      if ((RANDOM % 3 == 0)); then
+        line+="${GREEN}${chars[$((RANDOM % ${#chars[@]}))]}"
+      else
+        line+=" "
+      fi
+    done
+    echo -e "${line}${NC}"
+  done
+  sleep 0.1
 }
 
-# Colorful echo functions
-info() {
-  echo -e "\033[1;34m[INFO]\033[0m $1"
+# Progress bar with style
+progress_bar() {
+  local msg="$1"
+  local duration=${2:-3}
+  local cols=$(tput cols)
+  local bar_size=40
+  local progress=0
+  
+  echo -e "\n${CYAN}${BOLD}$msg${NC}"
+  
+  while [ $progress -le 100 ]; do
+    local filled=$(($progress * bar_size / 100))
+    local empty=$((bar_size - filled))
+    
+    printf "\r["
+    printf "%${filled}s" '' | tr ' ' '█'
+    printf "%${empty}s" '' | tr ' ' '░'
+    printf "] ${progress}%%"
+    
+    progress=$((progress + 2))
+    sleep $(bc -l <<< "scale=4; $duration/50")
+  done
+  echo -e "\n"
 }
 
-success() {
-  echo -e "\033[1;32m[SUCCESS]\033[0m $1"
+# Improved logging functions
+log_info() {
+  echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-error() {
-  echo -e "\033[1;31m[ERROR]\033[0m $1"
+log_success() {
+  echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-# Fail log function
-fail_log() {
-  local log_file="/tmp/crowdsec_metrics_install_fail.log"
-  echo "Installation failed at $(date)" > "$log_file"
-  echo "Current directory: $(pwd)" >> "$log_file"
-  echo "Error message: $1" >> "$log_file"
-  error "Installation failed. Check $log_file for details."
+log_error() {
+  echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Trap for cleanup
-trap 'kill $ANIM_PID 2>/dev/null' EXIT
+log_warning() {
+  echo -e "${YELLOW}[WARNING]${NC} $1"
+}
 
 # Main installation function
 install_crowdsec_metrics() {
-  # Get script directory
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-
+  clear
+  print_banner
+  sleep 1
+  
   # Check root privileges
   if [[ $EUID -ne 0 ]]; then
-    fail_log "Please run as root"
-    return 1
-  fi
-
-  # Find CrowdSec installation directory
-  CROWDSEC_DIR=$(dirname "$(which cscli)")
+    log_error "Please run as root"
+    exit 1
+  }
+  
+  # Initialize installation
+  matrix_rain "Initializing CrowdSec Metrics Installation"
+  sleep 1
+  
+  # Find CrowdSec installation
+  progress_bar "Detecting CrowdSec Installation" 2
+  CROWDSEC_DIR=$(dirname "$(which cscli 2>/dev/null)" || echo "")
   if [[ -z "$CROWDSEC_DIR" ]]; then
-    fail_log "CrowdSec installation not found"
-    return 1
-  fi
-
-  # Create dedicated user
+    log_error "CrowdSec installation not found!"
+    exit 1
+  }
+  log_success "CrowdSec found at: $CROWDSEC_DIR"
+  
+  # Create service user
+  matrix_rain "Creating Service User"
   if ! id "crowdsec-dashboard" &>/dev/null; then
-    info "Creating service user..."
     useradd -r -s /bin/false crowdsec-dashboard
-    usermod -aG docker crowdsec-dashboard || info "Docker group not found, continuing anyway"
+    usermod -aG docker crowdsec-dashboard 2>/dev/null || log_warning "Docker group not found (optional)"
+    log_success "Created user 'crowdsec-dashboard'"
   else
-    info "User 'crowdsec-dashboard' already exists"
+    log_info "User 'crowdsec-dashboard' already exists"
   fi
-
-  # Create application directory
+  
+  # Setup application directory
   APP_DIR="/opt/crowdsec-metrics"
+  progress_bar "Setting up application directory" 2
   mkdir -p "$APP_DIR"
   chown crowdsec-dashboard:crowdsec-dashboard "$APP_DIR"
-
-  # Copy application files
-  info "Copying files from $SCRIPT_DIR to $APP_DIR..."
-  rsync -ah --progress --exclude=.env "$SCRIPT_DIR/" "$APP_DIR/" || {
-    fail_log "Failed to copy files"
-    return 1
+  
+  # Copy files
+  matrix_rain "Deploying Application Files"
+  rsync -ah --progress --exclude=.env "$(dirname "$0")/" "$APP_DIR/" || {
+    log_error "Failed to copy files"
+    exit 1
   }
-
-  cd "$APP_DIR"
-
-  # Create .env.example if not exists
+  
+  # Create .env.example
+  progress_bar "Creating configuration files" 2
   ENV_EXAMPLE_PATH="${APP_DIR}/.env.example"
   if [[ ! -f "$ENV_EXAMPLE_PATH" ]]; then
-    info "Creating .env.example..."
     cat > "$ENV_EXAMPLE_PATH" << EOL
 # CrowdSec Metrics Dashboard Configuration
 
@@ -101,15 +164,12 @@ LOG_LEVEL=info
 # Optional: Additional CrowdSec metrics configuration
 METRICS_INTERVAL=60
 EOL
+    log_success "Created .env.example"
   fi
 
-  # Determine the correct path for package.json and metrics-server.js
-  PACKAGE_JSON_PATH="${APP_DIR}/package.json"
-  METRICS_SERVER_PATH="${APP_DIR}/metrics-server.js"
-
   # Create package.json
-  info "Creating package.json in ${PACKAGE_JSON_PATH}..."
-  cat > "$PACKAGE_JSON_PATH" << EOL
+  matrix_rain "Creating Node.js configuration"
+  cat > "${APP_DIR}/package.json" << EOL
 {
   "name": "crowdsec-metrics-dashboard",
   "version": "1.0.0",
@@ -136,10 +196,11 @@ EOL
   "license": "MIT"
 }
 EOL
+  log_success "Created package.json"
 
-  # Create metrics-server.js with improved logging
-  info "Creating metrics-server.js in ${METRICS_SERVER_PATH}..."
-  cat > "$METRICS_SERVER_PATH" << EOL
+  # Create metrics-server.js
+  matrix_rain "Creating metrics server"
+  cat > "${APP_DIR}/metrics-server.js" << EOL
 require('dotenv').config();
 const express = require('express');
 const { exec } = require('child_process');
@@ -180,20 +241,20 @@ app.listen(port, host, () => {
   logger.info(\`CrowdSec Metrics Dashboard running on http://\${host}:\${port}\`);
 });
 EOL
-
-  # Install Node.js dependencies
-  info "Installing Node.js dependencies..."
-  hacker_animation "Installing dependencies" &
-  ANIM_PID=$!
-  npm install
-  kill $ANIM_PID
-  wait $ANIM_PID 2>/dev/null
-  echo -e "\r\033[K\033[1;32m[SUCCESS]\033[0m Dependencies installed successfully"
-
+  log_success "Created metrics-server.js"
+  
+  # Install dependencies with style
+  matrix_rain "Installing Dependencies"
+  cd "$APP_DIR"
+  if ! npm install; then
+    log_error "Failed to install dependencies"
+    exit 1
+  }
+  log_success "Dependencies installed successfully"
+  
   # Create systemd service file
-  SERVICE_FILE="/etc/systemd/system/crowdsec-metrics.service"
-  info "Creating systemd service file at ${SERVICE_FILE}..."
-  cat > "$SERVICE_FILE" << EOL
+  progress_bar "Creating system service" 2
+  cat > "/etc/systemd/system/crowdsec-metrics.service" << EOL
 [Unit]
 Description=CrowdSec Metrics Dashboard
 After=network.target
@@ -208,27 +269,28 @@ WorkingDirectory=${APP_DIR}
 [Install]
 WantedBy=multi-user.target
 EOL
+  log_success "Created systemd service file"
 
-  # Reload systemd, enable and start the service
+  # Configure sudoers
+  matrix_rain "Configuring Security Permissions"
+  echo "crowdsec-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics" > "/etc/sudoers.d/crowdsec-dashboard"
+  chmod 0440 "/etc/sudoers.d/crowdsec-dashboard"
+  log_success "Security permissions configured"
+  
+  # Setup systemd service
+  progress_bar "Starting system service" 2
   systemctl daemon-reload
   systemctl enable crowdsec-metrics.service
   systemctl start crowdsec-metrics.service
-
-  # Configure sudoers for the crowdsec-dashboard user
-  SUDOERS_FILE="/etc/sudoers.d/crowdsec-dashboard"
-  info "Configuring sudoers for crowdsec-dashboard..."
-  echo "crowdsec-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics" > "$SUDOERS_FILE"
-  chmod 0440 "$SUDOERS_FILE"
-
-  success "Installation complete!"
-  info "📍 Package.json created at: $PACKAGE_JSON_PATH"
-  info "📍 Metrics server created at: $METRICS_SERVER_PATH"
-  info "➤ Check service status: systemctl status crowdsec-metrics"
-  info "➤ View logs: journalctl -u crowdsec-metrics -f"
+  
+  # Final success message
+  clear
+  print_banner
+  echo -e "\n${GREEN}${BOLD}🎉 Installation Complete! 🎉${NC}\n"
+  echo -e "${CYAN}📊 Dashboard is now running!${NC}"
+  echo -e "${YELLOW}➤ Check status:${NC} systemctl status crowdsec-metrics"
+  echo -e "${YELLOW}➤ View logs:${NC} journalctl -u crowdsec-metrics -f\n"
 }
 
 # Run the installation
 install_crowdsec_metrics
-
-# Final message
-echo "Script execution completed. If you don't see any error messages above, the installation was successful."
