@@ -1,35 +1,31 @@
 #!/bin/bash
 set -euo pipefail
 
-# Fancy spinner with colors
-spinner() {
-  local pid=$1
-  local msg=$2
+# Calmer animation function
+calm_animation() {
+  local msg=$1
+  local chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
   local delay=0.1
-  local spinner=('🌑' '🌒' '🌓' '🌔' '🌕' '🌖' '🌗' '🌘')
-  local color='\033[1;36m'  # Cyan
-  local reset='\033[0m'
   local i=0
 
-  while kill -0 "$pid" 2>/dev/null; do
-    printf "\r${color}${spinner[i]} %s...${reset}" "$msg"
+  while true; do
+    printf "\r\033[1;34m%s\033[0m %s" "${chars[i]}" "$msg"
     sleep "$delay"
-    i=$(( (i+1) % 8 ))
+    i=$(( (i+1) % ${#chars[@]} ))
   done
-  printf "\r✅ ${color}%s complete!${reset}\n" "$msg"
 }
 
 # Colorful echo functions
 info() {
-  echo -e "\033[1;34m[ℹ️ INFO]\033[0m $1"
+  echo -e "\033[1;34m[INFO]\033[0m $1"
 }
 
 success() {
-  echo -e "\033[1;32m[✅ SUCCESS]\033[0m $1"
+  echo -e "\033[1;32m[SUCCESS]\033[0m $1"
 }
 
 error() {
-  echo -e "\033[1;31m[❌ ERROR]\033[0m $1"
+  echo -e "\033[1;31m[ERROR]\033[0m $1"
 }
 
 # Get script directory
@@ -78,7 +74,8 @@ if [[ ! -f "$ENV_EXAMPLE_PATH" ]]; then
   cat > "$ENV_EXAMPLE_PATH" << EOL
 # CrowdSec Metrics Dashboard Configuration
 
-# Server Port (optional, default: 3456)
+# Server Host and Port
+HOST=10.10.10.72
 PORT=3456
 
 # Logging Level (optional: debug, info, warn, error)
@@ -148,6 +145,7 @@ const logger = winston.createLogger({
 });
 
 const app = express();
+const host = process.env.HOST || '10.10.10.72';
 const port = process.env.PORT || 3456;
 
 app.get('/metrics', (req, res) => {
@@ -161,14 +159,19 @@ app.get('/metrics', (req, res) => {
   });
 });
 
-app.listen(port, () => {
-  logger.info(\`CrowdSec Metrics Dashboard running on port \${port}\`);
+app.listen(port, host, () => {
+  logger.info(\`CrowdSec Metrics Dashboard running on http://\${host}:\${port}\`);
 });
 EOL
 
 # Install Node.js dependencies
 info "Installing Node.js dependencies..."
-(npm install) & spinner $! "Installing dependencies"
+calm_animation "Installing dependencies" &
+ANIM_PID=$!
+npm install
+kill $ANIM_PID
+wait $ANIM_PID 2>/dev/null
+echo -e "\r\033[K\033[1;32m✔\033[0m Dependencies installed successfully"
 
 # Create systemd service file
 SERVICE_FILE="/etc/systemd/system/crowdsec-metrics.service"
@@ -205,3 +208,4 @@ info "📍 Package.json created at: $PACKAGE_JSON_PATH"
 info "📍 Metrics server created at: $METRICS_SERVER_PATH"
 info "➤ Check service status: systemctl status crowdsec-metrics"
 info "➤ View logs: journalctl -u crowdsec-metrics -f"
+
