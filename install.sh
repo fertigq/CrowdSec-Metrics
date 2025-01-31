@@ -8,11 +8,11 @@ spinner() {
 
   while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
     for i in "${spinner[@]}"; do
-      printf "\r[%c] %s" "$i" "Installing dependencies..."
+      printf "\r[%c] %s" "$i" "$2"
       sleep $delay
     done
   done
-  printf "\r[✔] %s\n" "Installation complete!"
+  printf "\r[✔] %s\n" "$2"
 }
 
 # Check if running as root
@@ -45,13 +45,21 @@ cd /opt/crowdsec-metrics
 # Install Node.js and npm if not already installed
 if ! command -v npm &> /dev/null; then
   echo "npm not found, installing Node.js and npm..."
-  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-  sudo apt-get install -y nodejs
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &
+  spinner $! "Setting up NodeSource repository"
+  sudo apt-get install -y nodejs &
+  spinner $! "Installing Node.js"
+fi
+
+# Check if package.json exists
+if [ ! -e "package.json" ]; then
+  echo "package.json not found. Please ensure it is present in the directory."
+  exit 1
 fi
 
 # Install dependencies with spinner
 npm install --production &
-spinner $!
+spinner $! "Installing dependencies"
 
 # Create and configure environment file
 if [ -e ".env.example" ]; then
