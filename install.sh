@@ -166,8 +166,39 @@ app.listen(port, () => {
 });
 EOL
 
-# Rest of the script remains the same...
-# (Include the rest of the previous script here)
+# Install Node.js dependencies
+info "Installing Node.js dependencies..."
+(npm install) & spinner $! "Installing dependencies"
+
+# Create systemd service file
+SERVICE_FILE="/etc/systemd/system/crowdsec-metrics.service"
+info "Creating systemd service file at ${SERVICE_FILE}..."
+cat > "$SERVICE_FILE" << EOL
+[Unit]
+Description=CrowdSec Metrics Dashboard
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node ${APP_DIR}/metrics-server.js
+Restart=always
+User=crowdsec-dashboard
+Environment=NODE_ENV=production
+WorkingDirectory=${APP_DIR}
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Reload systemd, enable and start the service
+systemctl daemon-reload
+systemctl enable crowdsec-metrics.service
+systemctl start crowdsec-metrics.service
+
+# Configure sudoers for the crowdsec-dashboard user
+SUDOERS_FILE="/etc/sudoers.d/crowdsec-dashboard"
+info "Configuring sudoers for crowdsec-dashboard..."
+echo "crowdsec-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics" > "$SUDOERS_FILE"
+chmod 0440 "$SUDOERS_FILE"
 
 success "Installation complete!"
 info "📍 Package.json created at: $PACKAGE_JSON_PATH"
