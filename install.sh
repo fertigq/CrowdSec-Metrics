@@ -1,5 +1,20 @@
 #!/bin/bash
 
+# Function to display a spinner
+spinner() {
+  local pid=$1
+  local delay=0.1
+  local spinner=( '|' '/' '-' '\' )
+
+  while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+    for i in "${spinner[@]}"; do
+      printf "\r[%c] %s" "$i" "Installing dependencies..."
+      sleep $delay
+    done
+  done
+  printf "\r[✔] %s\n" "Installation complete!"
+}
+
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
@@ -30,12 +45,13 @@ cd /opt/crowdsec-metrics
 # Install Node.js and npm if not already installed
 if ! command -v npm &> /dev/null; then
   echo "npm not found, installing Node.js and npm..."
-  curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
   sudo apt-get install -y nodejs
 fi
 
-# Install dependencies
-npm install --production
+# Install dependencies with spinner
+npm install --production &
+spinner $!
 
 # Create and configure environment file
 if [ -e ".env.example" ]; then
