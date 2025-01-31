@@ -1,129 +1,135 @@
 #!/bin/bash
 set -euo pipefail
 
-# Function to display a spinner
-spinner() {
-  local pid=$1
-  local msg=$2
-  local delay=0.1
-  local spinner=('|' '/' '-' '\')
-  local i=0
+# Configuration
+APP_NAME="crowdsec-metrics"
+INSTALL_DIR="/opt/${APP_NAME}"
+SERVICE_USER="crowdsec-dashboard"
+REQUIRED_FILES=("install.sh" "crowdsec-metrics.service" "package.json" ".env.example")
 
-  while kill -0 "$pid" 2>/dev/null; do
-    printf "\r[%s] %s" "${spinner[i]}" "$msg"
-    sleep "$delay"
-    i=$(( (i+1) % 4 ))
-  done
-  printf "\r[✔] %s\n" "$msg"
+# Colors and formatting
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Error handling
+trap 'cleanup && echo -e "${RED}Installation aborted!${NC}" >&2 && exit 1' ERR
+
+cleanup() {
+    # Remove partial installation on failure
+    if [[ -d "${INSTALL_DIR}" && "$(ls -A ${INSTALL_DIR})" ]]; then
+        echo -e "${YELLOW}Cleaning up partial installation...${NC}"
+        rm -rf "${INSTALL_DIR}/"*
+    fi
 }
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+# Pre-install checks
+verify_environment() {
+    # Check if running as root
+    [[ $EUID -eq 0 ]] || { echo -e "${RED}Must be run as root${NC}" >&2; exit 1; }
 
-# Check root privileges
-if [[ $EUID -ne 0 ]]; then
-  echo "❌ Please run as root" >&2
-  exit 1
-fi
+    # Verify script location contains required files
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+    for file in "${REQUIRED_FILES[@]}"; do
+        if [[ ! -f "${script_dir}/${file}" ]]; then
+            echo -e "${RED}Missing required file: ${file}${NC}" >&2
+            echo -e "Place all installation files in the same directory as this script"
+            exit 1
+        fi
+    done
 
-# Create dedicated user
-if ! id "crowdsec-dashboard" &>/dev/null; then
-  echo "Creating service user..."
-  useradd -r -s /bin/false crowdsec-dashboard
-  usermod -aG docker crowdsec-dashboard || echo "⚠️  Docker group not found, continuing anyway"
-else
-  echo "ℹ️  User 'crowdsec-dashboard' already exists"
-fi
-
-# Create application directory
-APP_DIR="/opt/crowdsec-metrics"
-mkdir -p "$APP_DIR"
-chown crowdsec-dashboard:crowdsec-dashboard "$APP_DIR"
-
-# Copy application files
-echo "📂 Copying files from $SCRIPT_DIR to $APP_DIR..."
-rsync -ah --progress --exclude=.env "$SCRIPT_DIR/" "$APP_DIR/" || {
-  echo "❌ Failed to copy files" >&2
-  exit 1
+    # Prevent running from target directory
+    if [[ "${script_dir}" == "${INSTALL_DIR}" ]]; then
+        echo -e "${RED}Do NOT run this script from ${INSTALL_DIR}${NC}" >&2
+        echo -e "Create a separate directory with all required files and run from there"
+        exit 1
+    fi
 }
 
-cd "$APP_DIR"
+install_dependencies() {
+    # Install Node.js if needed
+    if ! command -v npm &> /dev/null; then
+        echo -e "${YELLOW}Installing Node.js...${NC}"
+        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+        apt-get install -y nodejs
+    fi
 
-# Verify critical files exist
-for file in package.json crowdsec-metrics.service .env.example; do
-  if [[ ! -f "$file" ]]; then
-    echo "❌ Missing required file: $file" >&2
-    exit 1
-  fi
-done
-
-# Install Node.js if needed
-if ! command -v npm &>/dev/null; then
-  echo "Installing Node.js..."
-  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &
-  spinner $! "Configuring NodeSource"
-  apt-get install -y nodejs &
-  spinner $! "Installing Node.js"
-fi
-
-# Install dependencies
-echo "📦 Installing npm dependencies..."
-sudo -u crowdsec-dashboard npm install --production &
-spinner $! "Installing packages"
-
-# Configure environment file
-if [[ ! -f .env ]]; then
-  cp .env.example .env
-  chown crowdsec-dashboard:crowdsec-dashboard .env
-  chmod 600 .env
-  echo "ℹ️  Created new .env file from example"
-else
-  echo "ℹ️  Existing .env file preserved"
-fi
-
-# Configure sudo access
-SUDOERS_FILE="/etc/sudoers.d/crowdsec-dashboard"
-if [[ ! -f "$SUDOERS_FILE" ]]; then
-  echo "Configuring sudo privileges..."
-  {
-    echo "crowdsec-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics"
-    echo "crowdsec-dashboard ALL=(root) NOPASSWD: /usr/bin/docker exec crowdsec cscli metrics"
-  } > "$SUDOERS_FILE"
-  chmod 440 "$SUDOERS_FILE"
-else
-  echo "ℹ️  Sudoers configuration already exists"
-fi
-
-# Install systemd service
-SERVICE_FILE="/etc/systemd/system/crowdsec-metrics.service"
-if [[ ! -f "$SERVICE_FILE" ]]; then
-  cp crowdsec-metrics.service "$SERVICE_FILE"
-  systemctl daemon-reload
-  echo "ℹ️  Systemd service installed"
-else
-  echo "ℹ️  Systemd service already exists"
-fi
-
-# Enable and restart service
-echo "🔄 Starting service..."
-systemctl enable --now crowdsec-metrics || {
-  echo "❌ Failed to start service" >&2
-  systemctl status crowdsec-metrics || true
-  exit 1
+    # Verify npm exists
+    command -v npm &> /dev/null || { 
+        echo -e "${RED}Failed to install Node.js/npm${NC}" >&2
+        exit 1
+    }
 }
 
-# Configure firewall
-if command -v ufw &>/dev/null && ! ufw status | grep -q 3456/tcp; then
-  ufw allow 3456/tcp
-  echo "🔒 Added firewall rule for port 3456"
-fi
+setup_application() {
+    # Create service user
+    if ! id "${SERVICE_USER}" &> /dev/null; then
+        useradd -r -s /bin/false "${SERVICE_USER}"
+        usermod -aG docker "${SERVICE_USER}" 2>/dev/null || true
+    fi
 
-# Final permissions
-chown -R crowdsec-dashboard:crowdsec-dashboard "$APP_DIR"
-find "$APP_DIR" -type d -exec chmod 750 {} \;
-find "$APP_DIR" -type f -exec chmod 640 {} \;
+    # Create install directory
+    mkdir -p "${INSTALL_DIR}"
+    chown "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}"
 
-echo "✅ Installation complete"
-echo "➤ Edit your configuration: sudo nano $APP_DIR/.env"
-echo "➤ Check service status: systemctl status crowdsec-metrics"
-echo "➤ View logs: journalctl -u crowdsec-metrics -f"
+    # Copy application files
+    echo -e "${YELLOW}Copying application files...${NC}"
+    rsync -av --exclude=.env --exclude=node_modules/ \
+        "$(dirname "${BASH_SOURCE[0]}")/" "${INSTALL_DIR}/"
+
+    # Install npm dependencies
+    echo -e "${YELLOW}Installing dependencies...${NC}"
+    sudo -u "${SERVICE_USER}" npm install --prefix "${INSTALL_DIR}" --production
+
+    # Create .env file
+    if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
+        cp "${INSTALL_DIR}/.env.example" "${INSTALL_DIR}/.env"
+        chown "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/.env"
+        chmod 600 "${INSTALL_DIR}/.env"
+    fi
+}
+
+configure_system() {
+    # Sudoers configuration
+    local sudoers_file="/etc/sudoers.d/${SERVICE_USER}"
+    if [[ ! -f "${sudoers_file}" ]]; then
+        echo "${SERVICE_USER} ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics" > "${sudoers_file}"
+        echo "${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/docker exec crowdsec cscli metrics" >> "${sudoers_file}"
+        chmod 440 "${sudoers_file}"
+    fi
+
+    # Systemd service
+    local service_file="/etc/systemd/system/${APP_NAME}.service"
+    if [[ ! -f "${service_file}" ]]; then
+        cp "${INSTALL_DIR}/crowdsec-metrics.service" "${service_file}"
+        systemctl daemon-reload
+    fi
+
+    # Enable and start service
+    systemctl enable --now "${APP_NAME}" || true
+}
+
+post_install() {
+    # Set permissions
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}"
+    find "${INSTALL_DIR}" -type d -exec chmod 750 {} \;
+    find "${INSTALL_DIR}" -type f -exec chmod 640 {} \;
+
+    # Firewall configuration
+    if command -v ufw &> /dev/null && ! ufw status | grep -q 3456/tcp; then
+        ufw allow 3456/tcp
+    fi
+
+    echo -e "\n${GREEN}Installation complete!${NC}"
+    echo -e "Next steps:"
+    echo -e "1. Edit configuration: ${YELLOW}nano ${INSTALL_DIR}/.env${NC}"
+    echo -e "2. Restart service:    ${YELLOW}systemctl restart ${APP_NAME}${NC}"
+}
+
+# Main execution flow
+verify_environment
+install_dependencies
+setup_application
+configure_system
+post_install
