@@ -1,17 +1,20 @@
 #!/bin/bash
 set -euo pipefail
 
-# Calmer animation function
-calm_animation() {
+# Hacker-style animation function
+hacker_animation() {
   local msg=$1
-  local chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  local chars=('|' '/' '-' '\')
+  local hacker_chars=('01' '10' '001' '110' '0101' '1010')
   local delay=0.1
   local i=0
+  local j=0
 
   while true; do
-    printf "\r\033[1;34m%s\033[0m %s" "${chars[i]}" "$msg"
+    printf "\r\033[1;32m[%s] \033[1;37m%s \033[1;32m%s\033[0m" "${hacker_chars[j]}" "$msg" "${chars[i]}"
     sleep "$delay"
     i=$(( (i+1) % ${#chars[@]} ))
+    j=$(( (j+1) % ${#hacker_chars[@]} ))
   done
 }
 
@@ -28,19 +31,31 @@ error() {
   echo -e "\033[1;31m[ERROR]\033[0m $1"
 }
 
+# Fail log function
+fail_log() {
+  local log_file="/tmp/crowdsec_metrics_install_fail.log"
+  echo "Installation failed at $(date)" > "$log_file"
+  echo "Current directory: $(pwd)" >> "$log_file"
+  echo "Error message: $1" >> "$log_file"
+  error "Installation failed. Check $log_file for details."
+}
+
+# Trap for cleanup
+trap 'kill $ANIM_PID 2>/dev/null' EXIT
+
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
 # Check root privileges
 if [[ $EUID -ne 0 ]]; then
-  error "Please run as root" >&2
+  fail_log "Please run as root"
   exit 1
 fi
 
 # Find CrowdSec installation directory
 CROWDSEC_DIR=$(dirname "$(which cscli)")
 if [[ -z "$CROWDSEC_DIR" ]]; then
-  error "CrowdSec installation not found" >&2
+  fail_log "CrowdSec installation not found"
   exit 1
 fi
 
@@ -61,7 +76,7 @@ chown crowdsec-dashboard:crowdsec-dashboard "$APP_DIR"
 # Copy application files
 info "Copying files from $SCRIPT_DIR to $APP_DIR..."
 rsync -ah --progress --exclude=.env "$SCRIPT_DIR/" "$APP_DIR/" || {
-  error "Failed to copy files" >&2
+  fail_log "Failed to copy files"
   exit 1
 }
 
@@ -166,12 +181,12 @@ EOL
 
 # Install Node.js dependencies
 info "Installing Node.js dependencies..."
-calm_animation "Installing dependencies" &
+hacker_animation "Installing dependencies" &
 ANIM_PID=$!
 npm install
 kill $ANIM_PID
 wait $ANIM_PID 2>/dev/null
-echo -e "\r\033[K\033[1;32m✔\033[0m Dependencies installed successfully"
+echo -e "\r\033[K\033[1;32m[SUCCESS]\033[0m Dependencies installed successfully"
 
 # Create systemd service file
 SERVICE_FILE="/etc/systemd/system/crowdsec-metrics.service"
@@ -208,4 +223,3 @@ info "📍 Package.json created at: $PACKAGE_JSON_PATH"
 info "📍 Metrics server created at: $METRICS_SERVER_PATH"
 info "➤ Check service status: systemctl status crowdsec-metrics"
 info "➤ View logs: journalctl -u crowdsec-metrics -f"
-
