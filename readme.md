@@ -1,137 +1,117 @@
-# CrowdSec Metrics Dashboard
+# 🛡️ CrowdSec Metrics Dashboard
 
-A sleek, real-time dashboard for monitoring CrowdSec metrics across both host machines and Docker containers. Visualize your security data with easy-to-read graphs and alerts.
+A simple metrics dashboard that displays CrowdSec data from both your host machine and Docker container. Built to provide a straightforward alternative to more complex monitoring setups.
 
-## ⚠️ Important Disclaimer
+## 🎯 What This Is
 
-**PLEASE READ CAREFULLY BEFORE USING THIS SOFTWARE**
+This is an independent project that displays metrics from CrowdSec using native commands (`cscli` and `docker exec`). It's designed for users who:
+- Run CrowdSec in Docker but have bouncers on their host machine
+- Want to see metrics from both environments in one place
+- Prefer a simple dashboard over setting up Grafana or other monitoring tools
 
-This software was developed with the assistance of AI tools:
-- It has not undergone extensive professional security auditing
-- Testing has been limited to basic functionality
-- Use in production environments should be carefully considered
+This is NOT:
+- An official CrowdSec product
+- A replacement for CrowdSec's monitoring capabilities
+- A comprehensive monitoring solution
 
-**By using this software, you acknowledge and accept that:**
-- You use this software at your own risk
-- The creators assume no liability for any damages or security issues
-- No warranties or guarantees are provided, either express or implied
+## ⚙️ How It Works
 
-## 🚀 Features
+The dashboard pulls metrics using:
+- `cscli metrics` for host machine data
+- `docker exec` commands for container data
 
-- Real-time metrics visualization
-- Host and Docker container monitoring
-- Customizable dashboard layouts
-- Alert configuration
-- Data export capabilities
-- Mobile-responsive design
+No additional databases or complex setups required - it just reads and displays what CrowdSec already provides.
 
 ## 📋 Prerequisites
 
-- CrowdSec installed and running
-- Node.js 16 or higher
-- Docker (optional, for containerized deployment)
-- Modern web browser
-- Sudo privileges for installation
+- CrowdSec installed (host, Docker, or both)
+- Node.js 16+
+- Basic familiarity with CrowdSec
+- Sudo access (for host metrics)
 
-## 🛠️ Installation
+## 🚀 Quick Start
 
-### Standard Installation
-
-1. Clone the repository:
+1. Clone and enter the directory:
    ```bash
-   git clone https://github.com/fertigq/CrowdSec-Metrics.git
-   cd crowdsec-metrics-dashboard
+   git clone https://github.com/fertigq/crowdsec-metrics.git
+   cd CrowdSec-Metrics
    ```
 
-2. Review and execute the installation script:
+2. Set up configuration:
    ```bash
-   cat install.sh  # Review the script first
-   sudo ./install.sh
+   cp example.env .env
+   nano .env   # Add your settings
    ```
 
-3. Configure the environment:
+3. Start the dashboard:
    ```bash
-   sudo nano /opt/crowdsec-metrics/.env
+   ./start.sh
    ```
 
-4. Start the service:
-   ```bash
-   sudo systemctl restart crowdsec-metrics
-   ```
+4. Access at `http://your-ip:3456`
 
-### Docker Installation
+## ⚡ Configuration
 
+Edit `.env` to set:
 ```bash
-docker pull yourusername/crowdsec-metrics-dashboard
-docker run -d -p 3456:3456 \
-  -v /path/to/config:/app/config \
-  --name crowdsec-dashboard \
-  yourusername/crowdsec-metrics-dashboard
-```
+# Required
+CROWDSEC_CONTAINER=your-crowdsec-container-name  # If using Docker
+HOST_METRICS=true/false                         # Enable host metrics
+DOCKER_METRICS=true/false                       # Enable Docker metrics
 
-## 🔒 Security Features
-
-- Non-root user execution
-- Network access restrictions
-- Rate limiting
-- Basic authentication
-- Input validation
-- Regular security updates
-
-### Security Recommendations
-
-1. Set up a reverse proxy with HTTPS
-2. Use strong passwords for dashboard access
-3. Regularly update the software
-4. Monitor system logs
-5. Restrict network access to trusted IPs
-
-## ⚙️ Configuration
-
-The dashboard can be configured through the `.env` file:
-
-```ini
-PORT=3456
-AUTH_ENABLED=true
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-password
-LOG_LEVEL=info
-METRICS_RETENTION_DAYS=30
+# Optional
+PORT=3456                                       # Default port
+REFRESH_INTERVAL=30                             # Seconds between updates
 ```
 
 ## 🔍 Troubleshooting
 
-### View Logs
-```bash
-sudo journalctl -u crowdsec-metrics
-```
+Common issues:
 
-### Common Issues
+1. "Permission denied" for host metrics
+   - Check sudo access
+   - Verify cscli installation
 
-1. Dashboard Not Loading
-   - Check service status: `systemctl status crowdsec-metrics`
-   - Verify port availability: `netstat -tulpn | grep 3456`
-   - Check firewall settings
+2. Can't connect to Docker
+   - Verify container name
+   - Check Docker socket permissions
 
-2. Authentication Issues
-   - Verify credentials in .env file
-   - Clear browser cache
-   - Check logs for auth errors
-
-3. No Metrics Showing
+3. Dashboard shows no data
    - Confirm CrowdSec is running
-   - Check API connectivity
-   - Verify metrics collection service
+   - Check logs: `tail -f logs/dashboard.log`
 
-## 📊 Usage Examples
+## 🔒 Security Notes
 
-1. Basic Monitoring
-   ```bash
-   http://your-server-ip:3456/dashboard
-   ```
+- The dashboard only reads metrics - it cannot modify your CrowdSec configuration
+- Restrict dashboard access to trusted networks
+- Use basic auth if exposed beyond localhost
 
-2. API Access
-   ```bash
-   curl -X GET http://your-server-ip:3456/api/metrics \
-     -H "Authorization: Bearer your-token"
-   ```
+## 🤝 Contributing
+
+Issues and PRs welcome. Please:
+1. Describe what you're trying to accomplish
+2. Keep changes focused and simple
+3. Test thoroughly
+
+## 💌 Feedback
+
+This is a work in progress. If you have suggestions or find bugs, please open an issue on GitHub.
+
+## 🎨 Features
+
+- Real-time metrics from both host and Docker
+- Clean, simple interface
+- Easy to set up and maintain
+- Lightweight resource usage
+- Mobile-friendly design
+
+## 📊 What You Can Monitor
+
+- Decisions and bouncers
+- Top attacked IPs
+- Alert trends
+- Machine status
+- Bouncer status
+
+---
+*🛡️ This is an independent project and is not affiliated with or endorsed by CrowdSec.*
