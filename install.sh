@@ -155,7 +155,7 @@ install_crowdsec_metrics() {
 # CrowdSec Metrics Dashboard Configuration
 
 # Server Host and Port
-HOST=0.0.0.0
+HOST=10.10.10.72
 PORT=3456
 
 # Logging Level (optional: debug, info, warn, error)
@@ -223,7 +223,7 @@ const logger = winston.createLogger({
 });
 
 const app = express();
-const host = process.env.HOST || '0.0.0.0';
+const host = process.env.HOST || '10.10.10.72';
 const port = process.env.PORT || 3456;
 
 app.get('/metrics', (req, res) => {
