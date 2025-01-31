@@ -36,7 +36,7 @@ No persistent data is stored, dependencies are kept to a minimum, and the resour
 ```bash
 # Clone repository
 git clone https://github.com/fertigq/crowdsec-metrics.git
-cd crowdsec-metrics-dashboard
+cd crowdsec-metrics
 
 # Edit the installation script to bind to your specific IP
 sed -i 's/HOST=localhost/HOST=YOURSERVERIP/' install.sh
