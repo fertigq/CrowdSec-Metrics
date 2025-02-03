@@ -27,12 +27,12 @@ fi
 
 # Stop and disable the service
 print_message "Stopping and disabling service..."
-systemctl stop crowdsec-metrics
-systemctl disable crowdsec-metrics
+systemctl stop crowdsec-metrics || true  # Continue even if stop fails
+systemctl disable crowdsec-metrics || true
 
 # Remove the service file
 print_message "Removing service file..."
-rm /etc/systemd/system/crowdsec-metrics.service
+rm -f /etc/systemd/system/crowdsec-metrics.service
 
 # Reload systemd
 systemctl daemon-reload
@@ -41,12 +41,24 @@ systemctl daemon-reload
 print_message "Removing installation directory..."
 rm -rf /opt/crowdsec-metrics
 
-# Remove the user
+# Remove the user (with additional checks)
 print_message "Removing user..."
-userdel crowdsec-dashboard
+if id crowdsec-dashboard &>/dev/null; then
+    userdel -r crowdsec-dashboard 2>/dev/null || true
+    # Remove group if it exists
+    groupdel crowdsec-dashboard 2>/dev/null || true
+fi
 
-# Remove firewall rule
+# Remove firewall rule (with error handling)
 print_message "Removing firewall rule..."
-ufw delete allow 3456/tcp
+if command -v ufw &> /dev/null; then
+    ufw delete allow 3456/tcp || true
+else
+    print_error "UFW not found. Please manually remove firewall rules if needed."
+fi
+
+# Optional: Clean up any remaining logs or configurations
+rm -f /var/log/crowdsec-metrics-install.log
+rm -f /var/log/crowdsec-metrics.log
 
 print_success "CrowdSec Metrics Dashboard has been uninstalled."
