@@ -17,7 +17,6 @@ SyslogIdentifier=crowdsec-metrics
 # Security enhancements
 PrivateTmp=true
 ProtectSystem=full
-NoNewPrivileges=true
 ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
