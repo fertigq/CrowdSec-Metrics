@@ -6,6 +6,17 @@ const dotenv = require('dotenv');
 const app = express();
 const port = process.env.PORT || 3456;
 
+// Load environment variables
+dotenv.config();
+
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Root route to serve index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Utility function for safe command execution
 function executeCommand(command) {
     return new Promise((resolve, reject) => {
@@ -67,7 +78,54 @@ app.get('/api/system-metrics', async (req, res) => {
     }
 });
 
+// CrowdSec Metrics
+app.get('/api/crowdsec-metrics', async (req, res) => {
+    try {
+        // Execute cscli metrics command
+        const metricsResult = await executeCommand('docker exec crowdsec cscli metrics');
+        
+        // Parse the metrics to extract decision counts
+        const decisionLines = metricsResult.output.split('\n')
+            .filter(line => line.includes('crowdsecurity/'))
+            .map(line => {
+                const parts = line.trim().split(/\s+/);
+                return {
+                    reason: parts[0],
+                    count: parseInt(parts[parts.length - 1])
+                };
+            });
+
+        // Prepare data for chart
+        const labels = decisionLines.map(d => d.reason);
+        const data = decisionLines.map(d => d.count);
+
+        res.json({ labels, data });
+    } catch (error) {
+        console.error('Error fetching CrowdSec metrics:', error);
+        res.status(500).json({ 
+            error: true, 
+            message: 'Failed to retrieve CrowdSec metrics' 
+        });
+    }
+});
+
+// Docker Metrics
+app.get('/api/docker-metrics', async (req, res) => {
+    try {
+        const containersResult = await executeCommand('docker ps');
+        res.json({ 
+            containers: containersResult.output 
+        });
+    } catch (error) {
+        console.error('Error fetching Docker metrics:', error);
+        res.status(500).json({ 
+            error: true, 
+            message: 'Failed to retrieve Docker metrics' 
+        });
+    }
+});
+
 // Start the server
-app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${port}`);
 });
