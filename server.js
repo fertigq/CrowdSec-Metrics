@@ -11,14 +11,27 @@ const host = process.env.HOST || "0.0.0.0"
 app.use(express.static("public"))
 
 app.get("/api/metrics", (req, res) => {
-  exec("sudo cscli metrics", (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`)
-      return res.status(500).json({ error: "Failed to fetch metrics" })
-    }
-    res.json({ metrics: stdout })
-  })
+  Promise.all([execCommand("sudo cscli metrics"), execCommand("sudo docker exec crowdsec cscli metrics")])
+    .then(([hostMetrics, dockerMetrics]) => {
+      res.json({ host: hostMetrics, docker: dockerMetrics })
+    })
+    .catch((error) => {
+      console.error(`Error fetching metrics: ${error}`)
+      res.status(500).json({ error: "Failed to fetch metrics" })
+    })
 })
+
+function execCommand(command) {
+  return new Promise((resolve, reject) => {
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        reject(error)
+      } else {
+        resolve(stdout)
+      }
+    })
+  })
+}
 
 app.listen(port, host, () => {
   console.log(`Server running on http://${host}:${port}`)
