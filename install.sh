@@ -1,41 +1,51 @@
-# Add this function to your script
-create_index_html() {
-    cat > "${APP_DIR}/index.html" << EOL
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrowdSec Metrics Dashboard</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        h1 { color: #333; }
-        #metrics { white-space: pre-wrap; background-color: #f0f0f0; padding: 10px; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <h1>CrowdSec Metrics Dashboard</h1>
-    <div id="metrics">Loading metrics...</div>
-    <script>
-        function fetchMetrics() {
-            fetch('/metrics')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('metrics').textContent = data.metrics;
-                })
-                .catch(error => {
-                    document.getElementById('metrics').textContent = 'Error fetching metrics: ' + error;
-                });
-        }
-        fetchMetrics();
-        setInterval(fetchMetrics, 60000); // Refresh every minute
-    </script>
-</body>
-</html>
-EOL
-    log_success "Created index.html"
-}
+#!/bin/bash
 
-# Call this function in your main installation function
-create_index_html
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 
+   exit 1
+fi
+
+# Create directory
+mkdir -p /opt/crowdsec-metrics
+cd /opt/crowdsec-metrics
+
+# Copy files
+cp server.js /opt/crowdsec-metrics/
+mkdir -p /opt/crowdsec-metrics/public
+cp public/index.html /opt/crowdsec-metrics/public/
+
+# Install dependencies
+npm init -y
+npm install express dotenv
+
+# Create .env file
+cat > /opt/crowdsec-metrics/.env << EOL
+PORT=3456
+HOST=0.0.0.0
+EOL
+
+# Create systemd service file
+cat > /etc/systemd/system/crowdsec-metrics.service << EOL
+[Unit]
+Description=CrowdSec Metrics Dashboard
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /opt/crowdsec-metrics/server.js
+Restart=always
+User=root
+Environment=NODE_ENV=production
+WorkingDirectory=/opt/crowdsec-metrics
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Reload systemd, enable and start the service
+systemctl daemon-reload
+systemctl enable crowdsec-metrics.service
+systemctl start crowdsec-metrics.service
+
+echo "Installation complete. Access the dashboard at http://your-server-ip:3456"
 
