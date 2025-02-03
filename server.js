@@ -43,20 +43,20 @@ function execCommand(command) {
 
 app.get("/api/metrics", async (req, res) => {
   try {
-    const [hostMetrics, dockerMetrics] = await Promise.all([
-      execCommand("sudo cscli metrics").catch(error => {
-        console.error("Host metrics failed:", error);
-        return "Error fetching host metrics";
-      }),
-      execCommand("sudo docker exec crowdsec cscli metrics").catch(error => {
-        console.error("Docker metrics failed:", error);
-        return "Error fetching docker metrics";
-      })
+    const [hostMetrics, dockerMetrics, alerts, decisions, bouncers] = await Promise.all([
+      execCommand("cscli metrics"),
+      execCommand("docker exec crowdsec cscli metrics"),
+      execCommand("cscli alerts list -o json"),
+      execCommand("cscli decisions list -o json"),
+      execCommand("cscli bouncers list -o json")
     ]);
 
     res.json({ 
       host: hostMetrics, 
       docker: dockerMetrics,
+      alerts: JSON.parse(alerts),
+      decisions: JSON.parse(decisions),
+      bouncers: JSON.parse(bouncers),
       timestamp: new Date().toISOString()
     });
   } catch (error) {
