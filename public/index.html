@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrowdSec Metrics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            100: '#1a1b1e',
+                            200: '#2c2e33',
+                            300: '#3d4046'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark-100 text-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold">CrowdSec Metrics Dashboard</h1>
+            <div class="text-sm text-gray-400" id="lastUpdate"></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="bg-dark-200 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Decisions Overview</h2>
+                <canvas id="decisionsChart" class="w-full"></canvas>
+            </div>
+            <div class="bg-dark-200 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Top IPs</h2>
+                <canvas id="topIpsChart" class="w-full"></canvas>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-dark-200 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Host Metrics</h2>
+                <pre id="hostMetrics" class="bg-dark-300 p-4 rounded overflow-auto text-gray-300 text-sm"></pre>
+            </div>
+            <div class="bg-dark-200 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Docker Metrics</h2>
+                <pre id="dockerMetrics" class="bg-dark-300 p-4 rounded overflow-auto text-gray-300 text-sm"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let decisionsChart, topIpsChart;
+
+        function parseMetrics(metricsText) {
+            const lines = metricsText.split('\n');
+            const decisions = {};
+            const topIps = {};
+            
+            lines.forEach(line => {
+                if (line.includes('ban')) decisions.ban = (decisions.ban || 0) + 1;
+                if (line.includes('captcha')) decisions.captcha = (decisions.captcha || 0) + 1;
+                
+                // Extract IPs (simplified - you might want to improve this regex)
+                const ipMatch = line.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
+                if (ipMatch) {
+                    const ip = ipMatch[0];
+                    topIps[ip] = (topIps[ip] || 0) + 1;
+                }
+            });
+
+            return { decisions, topIps };
+        }
+
+        function updateCharts(hostData, dockerData) {
+            const hostMetrics = parseMetrics(hostData);
+            const dockerMetrics = parseMetrics(dockerData);
+
+            // Update or create decisions chart
+            const decisionsData = {
+                labels: ['Ban', 'Captcha'],
+                datasets: [{
+                    label: 'Host',
+                    data: [hostMetrics.decisions.ban || 0, hostMetrics.decisions.captcha || 0],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }, {
+                    label: 'Docker',
+                    data: [dockerMetrics.decisions.ban || 0, dockerMetrics.decisions.captcha || 0],
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }]
+            };
+
+            if (decisionsChart) {
+                decisionsChart.data = decisionsData;
+                decisionsChart.update();
+            } else {
+                const ctx = document.getElementById('decisionsChart').getContext('2d');
+                decisionsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: decisionsData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    color: '#e5e7eb'
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: '#e5e7eb'
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: '#e5e7eb'
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Combine and sort top IPs
+            const allIps = { ...hostMetrics.topIps, ...dockerMetrics.topIps };
+            const sortedIps = Object.entries(allIps)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 5);
+
+            const topIpsData = {
+                labels: sortedIps.map(([ip]) => ip),
+                datasets: [{
+                    label: 'Occurrences',
+                    data: sortedIps.map(([,count]) => count),
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            };
+
+            if (topIpsChart) {
+                topIpsChart.data = topIpsData;
+                topIpsChart.update();
+            } else {
+                const ctx = document.getElementById('topIpsChart').getContext('2d');
+                topIpsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: topIpsData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    color: '#e5e7eb'
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: '#e5e7eb'
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: '#e5e7eb'
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function fetchMetrics() {
+            fetch('/api/metrics')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('hostMetrics').textContent = data.host;
+                    document.getElementById('dockerMetrics').textContent = data.docker;
+                    document.getElementById('lastUpdate').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+                    updateCharts(data.host, data.docker);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Fetch metrics immediately and then every 30 seconds
+        fetchMetrics();
+        setInterval(fetchMetrics, 30000);
+    </script>
+</body>
+</html>
