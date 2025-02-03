@@ -64,17 +64,22 @@ else
     print_success "Node.js is already installed"
 fi
 
-# Create installation directory
-print_message "Creating installation directory..."
-mkdir -p $INSTALL_DIR
-check_success "Installation directory created" "Failed to create installation directory"
+# Check if we're already in the installation directory
+if [ "$PWD" != "$INSTALL_DIR" ]; then
+    # Create installation directory if it doesn't exist
+    print_message "Creating installation directory..."
+    mkdir -p $INSTALL_DIR
+    check_success "Installation directory created" "Failed to create installation directory"
 
-# Copy files
-print_message "Copying files..."
-cp server.js package.json $INSTALL_DIR/
-mkdir -p $INSTALL_DIR/public
-cp public/index.html $INSTALL_DIR/public/
-check_success "Files copied successfully" "Failed to copy files"
+    # Copy files
+    print_message "Copying files..."
+    cp -f server.js package.json $INSTALL_DIR/
+    mkdir -p $INSTALL_DIR/public
+    cp -f public/index.html $INSTALL_DIR/public/
+    check_success "Files copied successfully" "Failed to copy files"
+else
+    print_warning "Already in installation directory. Skipping file copy."
+fi
 
 # Create .env file
 cat > $INSTALL_DIR/.env << EOL
@@ -92,7 +97,7 @@ check_success "Dependencies installed successfully" "Failed to install dependenc
 
 # Create user and set permissions
 print_message "Creating user and setting permissions..."
-useradd -r -s /bin/false crowdsec-dashboard
+id -u crowdsec-dashboard &>/dev/null || useradd -r -s /bin/false crowdsec-dashboard
 chown -R crowdsec-dashboard:crowdsec-dashboard $INSTALL_DIR
 chmod -R 755 $INSTALL_DIR
 check_success "User created and permissions set" "Failed to create user or set permissions"
