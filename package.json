@@ -1,13 +1,13 @@
 {
-  "name": "crowdsec-metrics",
+  "name": "crowdsec-metrics-dashboard",
   "version": "1.0.0",
-  "type": "module",
-  "private": true,
+  "description": "CrowdSec Metrics Dashboard",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "dotenv": "^16.3.1"
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1"
   }
 }
