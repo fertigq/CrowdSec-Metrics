@@ -2,207 +2,83 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrowdSec Metrics Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>System Metrics Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #34495e;
-            --text-color: #ecf0f1;
-            --background-color: #2c3e50;
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
         }
-
-        body {
-            background-color: var(--background-color);
-            color: var(--text-color);
-            transition: all 0.3s ease;
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
         }
-
-        .dark-mode {
-            --primary-color: #ecf0f1;
-            --secondary-color: #bdc3c7;
-            --text-color: #2c3e50;
-            --background-color: #ecf0f1;
-        }
-
-        .card {
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-            margin-bottom: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .card-header {
-            background-color: var(--primary-color);
-            color: var(--text-color);
-        }
-
-        #darkModeToggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
+        .metric-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
         }
     </style>
 </head>
 <body>
-    <button id="darkModeToggle" class="btn btn-secondary">Toggle Dark Mode</button>
-
-    <div class="container-fluid mt-5">
-        <h1 class="text-center mb-4">CrowdSec Metrics Dashboard</h1>
-
-        <div class="row">
-            <!-- Metrics Dropdown -->
-            <div class="col-md-12 mb-3">
-                <select id="metricSelector" class="form-select">
-                    <option value="system">System Metrics</option>
-                    <option value="crowdsec">CrowdSec Metrics</option>
-                    <option value="docker">Docker Metrics</option>
-                </select>
-            </div>
+    <h1>System Metrics Dashboard</h1>
+    
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <h2>Uptime</h2>
+            <pre id="uptime-info">Loading...</pre>
         </div>
-
-        <!-- System Metrics Section -->
-        <div id="systemMetricsSection" class="row">
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">Uptime</div>
-                    <div class="card-body">
-                        <pre id="uptime-info" class="mb-0">Loading...</pre>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">Load Average</div>
-                    <div class="card-body">
-                        <pre id="load-average" class="mb-0">Loading...</pre>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">CPU Usage</div>
-                    <div class="card-body">
-                        <pre id="cpu-usage" class="mb-0">Loading...</pre>
-                    </div>
-                </div>
-            </div>
+        
+        <div class="metric-card">
+            <h2>Load Average</h2>
+            <pre id="load-average">Loading...</pre>
         </div>
-
-        <!-- CrowdSec Metrics Section (Hidden by Default) -->
-        <div id="crowdsecMetricsSection" class="row" style="display:none;">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">CrowdSec Decisions</div>
-                    <div class="card-body">
-                        <canvas id="crowdsecDecisionsChart"></canvas>
-                    </div>
-                </div>
-            </div>
+        
+        <div class="metric-card">
+            <h2>CPU Usage</h2>
+            <pre id="cpu-usage">Loading...</pre>
         </div>
-
-        <!-- Docker Metrics Section (Hidden by Default) -->
-        <div id="dockerMetricsSection" class="row" style="display:none;">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">Docker Containers</div>
-                    <div class="card-body">
-                        <pre id="docker-containers" class="mb-0">Loading...</pre>
-                    </div>
-                </div>
-            </div>
+        
+        <div class="metric-card">
+            <h2>Memory Usage</h2>
+            <pre id="memory-usage">Loading...</pre>
+        </div>
+        
+        <div class="metric-card">
+            <h2>Disk Usage</h2>
+            <pre id="disk-usage">Loading...</pre>
+        </div>
+        
+        <div class="metric-card">
+            <h2>Network Connections</h2>
+            <pre id="network-connections">Loading...</pre>
         </div>
     </div>
 
     <script>
-        // Dark Mode Toggle
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        darkModeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-        });
-
-        // Metrics Selector
-        const metricSelector = document.getElementById('metricSelector');
-        const systemMetricsSection = document.getElementById('systemMetricsSection');
-        const crowdsecMetricsSection = document.getElementById('crowdsecMetricsSection');
-        const dockerMetricsSection = document.getElementById('dockerMetricsSection');
-
-        metricSelector.addEventListener('change', (e) => {
-            systemMetricsSection.style.display = 'none';
-            crowdsecMetricsSection.style.display = 'none';
-            dockerMetricsSection.style.display = 'none';
-
-            switch(e.target.value) {
-                case 'system':
-                    systemMetricsSection.style.display = 'flex';
-                    break;
-                case 'crowdsec':
-                    crowdsecMetricsSection.style.display = 'flex';
-                    fetchCrowdSecMetrics();
-                    break;
-                case 'docker':
-                    dockerMetricsSection.style.display = 'flex';
-                    fetchDockerMetrics();
-                    break;
-            }
-        });
-
-        // Fetch System Metrics
         async function fetchSystemMetrics() {
             try {
                 const response = await fetch('/api/system-metrics');
                 const metrics = await response.json();
 
+                // Update metric displays
                 document.getElementById('uptime-info').textContent = metrics.uptime;
                 document.getElementById('load-average').textContent = metrics.loadAverage;
                 document.getElementById('cpu-usage').textContent = metrics.cpu;
+                document.getElementById('memory-usage').textContent = metrics.memory;
+                document.getElementById('disk-usage').textContent = metrics.disk;
+                document.getElementById('network-connections').textContent = metrics.network;
             } catch (error) {
-                console.error('Failed to fetch system metrics:', error);
+                console.error('Failed to fetch metrics:', error);
             }
         }
 
-        // Fetch CrowdSec Metrics
-        async function fetchCrowdSecMetrics() {
-            try {
-                const response = await fetch('/api/crowdsec-metrics');
-                const metrics = await response.json();
-
-                // Create chart for CrowdSec decisions
-                const ctx = document.getElementById('crowdsecDecisionsChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: metrics.labels || [],
-                        datasets: [{
-                            label: 'Blocked Attempts',
-                            data: metrics.data || [],
-                            backgroundColor: 'rgba(255, 99, 132, 0.6)'
-                        }]
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to fetch CrowdSec metrics:', error);
-            }
-        }
-
-        // Fetch Docker Metrics
-        async function fetchDockerMetrics() {
-            try {
-                const response = await fetch('/api/docker-metrics');
-                const metrics = await response.json();
-                document.getElementById('docker-containers').textContent = metrics.containers || 'No containers found';
-            } catch (error) {
-                console.error('Failed to fetch Docker metrics:', error);
-            }
-        }
-
-        // Initial fetch and periodic updates
+        // Fetch metrics immediately and then every 30 seconds
         fetchSystemMetrics();
         setInterval(fetchSystemMetrics, 30000);
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
