@@ -1,7 +1,6 @@
 const express = require('express');
 const { exec } = require('child_process');
 const path = require('path');
-const dotenv = require('dotenv');
 const app = express();
 const port = process.env.PORT || 3456;
 
@@ -29,10 +28,50 @@ function executeCommand(command, container = null) {
     });
 }
 
-// System Metrics Route
+// CrowdSec Metrics Route
+app.get('/api/crowdsec-metrics', async (req, res) => {
+    try {
+        // Fetch local API decisions
+        const decisionsResult = await executeCommand('cscli metrics show decisions', 'crowdsec');
+        
+        // Parse the metrics output
+        const decisionLines = decisionsResult.output.split('\n')
+            .slice(2, -3)  // Remove header and footer lines
+            .map(line => {
+                const parts = line.trim().split('|').map(p => p.trim());
+                return {
+                    reason: parts[0].replace('crowdsecurity/', ''),
+                    origin: parts[1],
+                    action: parts[2],
+                    count: parseInt(parts[3])
+                };
+            })
+            .filter(item => item.count > 0)
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);  // Top 10 reasons
+
+        // Prepare data for chart
+        const metrics = {
+            labels: decisionLines.map(d => d.reason),
+            data: decisionLines.map(d => d.count),
+            percentages: decisionLines.map(d => 
+                ((d.count / decisionLines.reduce((sum, item) => sum + item.count, 0)) * 100).toFixed(2)
+            )
+        };
+
+        res.json(metrics);
+    } catch (error) {
+        console.error('Error fetching CrowdSec metrics:', error);
+        res.status(500).json({ 
+            error: true, 
+            message: 'Failed to retrieve CrowdSec metrics' 
+        });
+    }
+});
+
+// System Metrics Route (keeping previous implementation)
 app.get('/api/system-metrics', async (req, res) => {
     try {
-        // More comprehensive system metrics
         const [uptimeResult, memoryResult, diskResult] = await Promise.all([
             executeCommand('uptime'),
             executeCommand('free -h'),
@@ -71,87 +110,6 @@ app.get('/api/system-metrics', async (req, res) => {
         res.status(500).json({ 
             error: true, 
             message: 'Failed to retrieve system metrics' 
-        });
-    }
-});
-
-// CrowdSec Metrics Route
-app.get('/api/crowdsec-metrics', async (req, res) => {
-    try {
-        // More comprehensive metrics retrieval
-        const metricsCommands = [
-            { command: 'cscli metrics', container: 'crowdsec' },
-            { command: 'cscli decisions list --output json', container: 'crowdsec' }
-        ];
-
-        const results = await Promise.all(
-            metricsCommands.map(cmd => executeCommand(cmd.command, cmd.container))
-        );
-
-        // Parse metrics
-        let metrics = { 
-            overallBlocks: 0,
-            topDecisions: [],
-            decisionDetails: []
-        };
-
-        // Parse overall metrics
-        const metricsOutput = results[0].output || '';
-        const decisionListOutput = results[1].output || '[]';
-
-        // Extract overall block counts from metrics
-        const blockLines = metricsOutput.split('\n')
-            .filter(line => line.includes('crowdsecurity/') && line.includes('block'));
-        
-        blockLines.forEach(line => {
-            const parts = line.trim().split(/\s+/);
-            const reason = parts[0].replace('crowdsecurity/', '');
-            const count = parseInt(parts[parts.length - 1]);
-            
-            metrics.overallBlocks += count;
-            metrics.topDecisions.push({ 
-                reason, 
-                count,
-                percentage: 0 // Will calculate later
-            });
-        });
-
-        // Sort and trim top decisions
-        metrics.topDecisions.sort((a, b) => b.count - a.count);
-        metrics.topDecisions = metrics.topDecisions.slice(0, 5);
-
-        // Calculate percentages
-        const totalBlocks = metrics.topDecisions.reduce((sum, decision) => sum + decision.count, 0);
-        metrics.topDecisions.forEach(decision => {
-            decision.percentage = ((decision.count / totalBlocks) * 100).toFixed(2);
-        });
-
-        // Parse detailed decisions
-        try {
-            const decisions = JSON.parse(decisionListOutput);
-            metrics.decisionDetails = decisions.map(dec => ({
-                ip: dec.ip,
-                reason: dec.type,
-                duration: dec.duration,
-                country: dec.country || 'Unknown'
-            })).slice(0, 10);  // Limit to top 10
-        } catch (parseError) {
-            console.error('Error parsing decisions:', parseError);
-        }
-
-        // Prepare data for chart
-        const chartData = {
-            labels: metrics.topDecisions.map(d => d.reason),
-            data: metrics.topDecisions.map(d => d.count),
-            percentages: metrics.topDecisions.map(d => d.percentage)
-        };
-
-        res.json(chartData);
-    } catch (error) {
-        console.error('Error fetching CrowdSec metrics:', error);
-        res.status(500).json({ 
-            error: true, 
-            message: 'Failed to retrieve CrowdSec metrics' 
         });
     }
 });
