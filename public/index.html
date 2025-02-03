@@ -2,197 +2,40 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CrowdSec Metrics Dashboard</title>
     <style>
-        :root {
-            --bg-color: #ffffff;
-            --text-color: #333333;
-            --chart-bg: #f4f4f4;
-        }
-        
-        .dark-mode {
-            --bg-color: #1a1a1a;
-            --text-color: #ffffff;
-            --chart-bg: #2c2c2c;
-        }
-        
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            color: var(--text-color);
-            background-color: var(--bg-color);
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            transition: background-color 0.3s, color 0.3s;
-        }
-        h1 {
-            color: var(--text-color);
-        }
-        .dropdown {
-            margin-bottom: 20px;
-        }
-        select {
-            padding: 5px;
-            font-size: 16px;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            border: 1px solid var(--text-color);
-        }
-        pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            background-color: var(--chart-bg);
-            border: 1px solid var(--text-color);
-            padding: 15px;
-            border-radius: 5px;
-        }
-        #darkModeToggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 10px;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            border: 1px solid var(--text-color);
-            cursor: pointer;
-        }
-        .chart-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-        }
-        .chart {
-            width: 48%;
-            margin-bottom: 20px;
-            background-color: var(--chart-bg);
-            padding: 15px;
-            border-radius: 5px;
-        }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        #metrics { margin-top: 20px; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <h1>CrowdSec Metrics Dashboard</h1>
-    
-    <button id="darkModeToggle">Toggle Dark Mode</button>
-    
-    <div class="chart-container">
-        <div class="chart">
-            <canvas id="hostMetricsChart"></canvas>
-        </div>
-        <div class="chart">
-            <canvas id="dockerMetricsChart"></canvas>
-        </div>
+    <div id="metrics">
+        <h2>Host Metrics</h2>
+        <pre id="hostMetrics">Loading...</pre>
+        
+        <h2>Docker Metrics</h2>
+        <pre id="dockerMetrics">Loading...</pre>
     </div>
-    
-    <div class="dropdown">
-        <label for="metricsSelect">Select Detailed Metric:</label>
-        <select id="metricsSelect">
-            <option value="host">Host Metrics</option>
-            <option value="docker">Docker Metrics</option>
-            <option value="alerts">Alerts</option>
-            <option value="decisions">Decisions</option>
-            <option value="bouncers">Bouncers</option>
-        </select>
-    </div>
-    
-    <pre id="metricsOutput"></pre>
 
     <script>
-        const select = document.getElementById('metricsSelect');
-        const output = document.getElementById('metricsOutput');
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        let hostChart, dockerChart;
-
-        function toggleDarkMode() {
-            document.body.classList.toggle('dark-mode');
-            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
-            updateCharts();
-        }
-
-        darkModeToggle.addEventListener('click', toggleDarkMode);
-
-        // Check for saved dark mode preference
-        if (localStorage.getItem('darkMode') === 'true') {
-            document.body.classList.add('dark-mode');
-        }
-
-        function createChart(ctx, label, data) {
-            return new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(data),
-                    datasets: [{
-                        label: label,
-                        data: Object.values(data),
-                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateCharts() {
-            const isDarkMode = document.body.classList.contains('dark-mode');
-            const textColor = isDarkMode ? '#ffffff' : '#333333';
-
-            if (hostChart) {
-                hostChart.options.scales.x.ticks.color = textColor;
-                hostChart.options.scales.y.ticks.color = textColor;
-                hostChart.update();
+        async function fetchMetrics() {
+            try {
+                const hostResponse = await fetch('/api/host-metrics');
+                const dockerResponse = await fetch('/api/docker-metrics');
+                
+                const hostMetrics = await hostResponse.json();
+                const dockerMetrics = await dockerResponse.json();
+                
+                document.getElementById('hostMetrics').textContent = JSON.stringify(hostMetrics, null, 2);
+                document.getElementById('dockerMetrics').textContent = JSON.stringify(dockerMetrics, null, 2);
+            } catch (error) {
+                console.error('Metrics fetch failed:', error);
             }
-
-            if (dockerChart) {
-                dockerChart.options.scales.x.ticks.color = textColor;
-                dockerChart.options.scales.y.ticks.color = textColor;
-                dockerChart.update();
-            }
-        }
-
-        function fetchMetrics() {
-            fetch('/api/metrics')
-                .then(response => response.json())
-                .then(data => {
-                    // Update charts
-                    const hostCtx = document.getElementById('hostMetricsChart').getContext('2d');
-                    const dockerCtx = document.getElementById('dockerMetricsChart').getContext('2d');
-
-                    if (hostChart) hostChart.destroy();
-                    if (dockerChart) dockerChart.destroy();
-
-                    hostChart = createChart(hostCtx, 'Host Metrics', JSON.parse(data.host));
-                    dockerChart = createChart(dockerCtx, 'Docker Metrics', JSON.parse(data.docker));
-
-                    updateCharts();
-
-                    // Update dropdown functionality
-                    select.onchange = () => {
-                        output.textContent = JSON.stringify(data[select.value], null, 2);
-                    };
-                    // Initial load of detailed metrics
-                    output.textContent = JSON.stringify(data[select.value], null, 2);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    output.textContent = 'Error fetching metrics';
-                });
         }
 
         fetchMetrics();
-        // Refresh every 30 seconds
-        setInterval(fetchMetrics, 30000);
     </script>
 </body>
 </html>
-
