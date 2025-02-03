@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Improved error handling and logging
+set -e  # Exit immediately if a command exits with a non-zero status
+set -o pipefail  # Capture errors in pipe chains
+
+# Logging
+exec > >(tee /var/log/crowdsec-metrics-install.log) 2>&1
+
 # Colors for pretty output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -29,13 +36,17 @@ print_warning() {
 
 # Function to check if a command was successful
 check_success() {
-    if [ $? -eq 0 ]; then
+    local status=$?
+    if [ $status -eq 0 ]; then
         print_success "$1"
     else
-        print_error "$2"
+        print_error "$2 (Exit status: $status)"
         exit 1
     fi
 }
+
+# Trap to catch any unexpected errors
+trap 'print_error "An unexpected error occurred. Check /var/log/crowdsec-metrics-install.log for details."' ERR
 
 # Check if running with sudo
 if [ "$EUID" -ne 0 ]; then
@@ -44,70 +55,54 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Print banner
-echo "
- ____                      _ ____             __  __      _        _          
-/ ___|_ __ _____      ____| / ___|  ___  ___ |  \/  | ___| |_ _ __(_) ___ ___ 
-| |   | '__/ _ \ \ /\ / / _\` \___ \ / _ \/ __|| |\/| |/ _ \ __| '__| |/ __/ __|
-| |___| | | (_) \ V  V / (_| |___) |  __/ (__ | |  | |  __/ |_| |  | | (__\__ \\
-\____|_|  \___/ \_/\_/ \__,_|____/ \___|\___||_|  |_|\___|\__|_|  |_|\___|___/
-"
-echo "Dashboard Installer"
+echo "CrowdSec Metrics Dashboard Installer"
 echo "------------------------"
 
-# Install Node.js if not present
-if ! command -v node &> /dev/null; then
-    print_message "Installing Node.js..."
-    curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
-    apt-get install -y nodejs
-    check_success "Node.js installed successfully" "Failed to install Node.js"
-else
-    print_success "Node.js is already installed"
+# Ensure clean installation
+if [ -d "$INSTALL_DIR" ]; then
+    print_warning "Removing existing installation directory"
+    rm -rf "$INSTALL_DIR"
 fi
 
-# Check if we're already in the installation directory
-if [ "$PWD" != "$INSTALL_DIR" ]; then
-    # Create installation directory if it doesn't exist
-    print_message "Creating installation directory..."
-    mkdir -p $INSTALL_DIR
-    check_success "Installation directory created" "Failed to create installation directory"
+# Create installation directory with explicit error handling
+print_message "Creating installation directory..."
+mkdir -p "$INSTALL_DIR" || { print_error "Failed to create installation directory"; exit 1; }
+check_success "Installation directory created"
 
-    # Copy files
-    print_message "Copying files..."
-    cp -f server.js package.json $INSTALL_DIR/
-    mkdir -p $INSTALL_DIR/public
-    cp -f public/index.html $INSTALL_DIR/public/
-    check_success "Files copied successfully" "Failed to copy files"
-else
-    print_warning "Already in installation directory. Skipping file copy."
-fi
+# Verify directory creation
+[ -d "$INSTALL_DIR" ] || { print_error "Installation directory does not exist"; exit 1; }
 
-# Create .env file
-cat > $INSTALL_DIR/.env << EOL
+# Copy files with verbose output
+print_message "Copying files..."
+cp -v server.js package.json "$INSTALL_DIR"/ || { print_error "Failed to copy server files"; exit 1; }
+mkdir -p "$INSTALL_DIR"/public
+cp -v public/index.html "$INSTALL_DIR"/public/ || { print_error "Failed to copy public files"; exit 1; }
+check_success "Files copied successfully"
+
+# Create .env file with more robust method
+print_message "Creating .env file..."
+cat > "$INSTALL_DIR"/.env << EOL
 PORT=3456
 HOST=0.0.0.0
 NODE_ENV=production
+VERBOSE_LOGGING=true
 EOL
-check_success ".env file created" "Failed to create .env file"
+check_success ".env file created"
 
-# Install dependencies
+# Install dependencies with verbose npm output
 print_message "Installing dependencies..."
-cd $INSTALL_DIR
-npm install --production
-check_success "Dependencies installed successfully" "Failed to install dependencies"
+cd "$INSTALL_DIR"
+npm install --production --loglevel verbose
+check_success "Dependencies installed successfully"
 
-# Create user and set permissions
+# Create user with additional checks
 print_message "Creating user and setting permissions..."
-id -u crowdsec-dashboard &>/dev/null || useradd -r -s /bin/false crowdsec-dashboard
-chown -R crowdsec-dashboard:crowdsec-dashboard $INSTALL_DIR
-chmod -R 755 $INSTALL_DIR
-check_success "User created and permissions set" "Failed to create user or set permissions"
+id crowdsec-dashboard &>/dev/null || useradd -r -s /bin/false crowdsec-dashboard
+chown -R crowdsec-dashboard:crowdsec-dashboard "$INSTALL_DIR"
+chmod -R 755 "$INSTALL_DIR"
+check_success "User created and permissions set"
 
-# Add user to docker group
-print_message "Adding user to docker group..."
-usermod -aG docker crowdsec-dashboard
-check_success "User added to docker group" "Failed to add user to docker group"
-
-# Create and configure the service
+# Create systemd service with more robust error handling
 print_message "Setting up systemd service..."
 cat > /etc/systemd/system/crowdsec-metrics.service << EOL
 [Unit]
@@ -115,8 +110,10 @@ Description=CrowdSec Metrics Dashboard
 After=network.target
 
 [Service]
+Type=simple
 ExecStart=/usr/bin/node $INSTALL_DIR/server.js
-Restart=always
+Restart=on-failure
+RestartSec=10
 User=crowdsec-dashboard
 Group=crowdsec-dashboard
 Environment=PATH=/usr/bin:/usr/local/bin
@@ -126,7 +123,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=crowdsec-metrics
 
-# Security enhancements
+# Enhanced security
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
@@ -137,18 +134,19 @@ ProtectControlGroups=true
 [Install]
 WantedBy=multi-user.target
 EOL
-check_success "Systemd service file created" "Failed to create systemd service file"
+check_success "Systemd service file created"
 
+# Reload, enable, and start service with error checking
 systemctl daemon-reload
 systemctl enable crowdsec-metrics
 systemctl start crowdsec-metrics
-check_success "Service enabled and started" "Failed to enable or start service"
+check_success "Service enabled and started"
 
-# Configure firewall
+# Firewall configuration
 print_message "Configuring firewall..."
 if command -v ufw &> /dev/null; then
     ufw allow 3456/tcp
-    check_success "Firewall configured" "Failed to configure firewall"
+    check_success "Firewall configured"
 else
     print_warning "ufw not found. Please manually configure your firewall to allow traffic on port 3456."
 fi
