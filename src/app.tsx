@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react"
+import type React from "react"
+import { useState, useEffect } from "react"
 import { Bar } from "react-chartjs-2"
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js"
 
@@ -35,8 +36,6 @@ const App: React.FC = () => {
   }, [])
 
   const parseMetrics = (metricsString: string) => {
-    // Parse the metrics string and return data for the chart
-    // This is a placeholder implementation and should be adjusted based on the actual format of your metrics
     const lines = metricsString.split("\n")
     const data = lines.slice(1).map((line) => {
       const [reason, , , count] = line.split("|").map((s) => s.trim())
@@ -61,10 +60,24 @@ const App: React.FC = () => {
     plugins: {
       legend: {
         position: "top" as const,
+        labels: {
+          color: "#e0e0e0",
+        },
       },
       title: {
         display: true,
         text: "CrowdSec Metrics",
+        color: "#e0e0e0",
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: "#e0e0e0" },
+        grid: { color: "#333333" },
+      },
+      y: {
+        ticks: { color: "#e0e0e0" },
+        grid: { color: "#333333" },
       },
     },
   }
@@ -96,3 +109,4 @@ const App: React.FC = () => {
 }
 
 export default App
+
