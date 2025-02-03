@@ -3,7 +3,7 @@ Description=CrowdSec Metrics Dashboard
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/node /opt/crowdsec-metrics/src/server.js
+ExecStart=/usr/bin/node /opt/crowdsec-metrics/server.js
 Restart=always
 User=crowdsec-dashboard
 Group=crowdsec-dashboard
@@ -25,3 +25,4 @@ ProtectControlGroups=true
 
 [Install]
 WantedBy=multi-user.target
+
