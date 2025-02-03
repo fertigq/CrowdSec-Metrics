@@ -19,28 +19,6 @@
             background-color: var(--primary-bg);
             font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
             color: var(--text-primary);
-            overflow-x: hidden;
-        }
-
-        .dashboard-container {
-            display: flex;
-            height: 100vh;
-        }
-
-        .sidebar {
-            width: var(--sidebar-width);
-            background-color: #2c3e50;
-            color: white;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-
-        .main-content {
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-            margin-left: var(--sidebar-width);
-            background-color: var(--primary-bg);
         }
 
         .dashboard-card {
@@ -56,242 +34,98 @@
             box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
 
-        .metric-header {
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+
+        .threat-detail {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
             border-bottom: 1px solid #ecf0f1;
-            padding: 15px;
         }
 
-        .metric-body {
-            padding: 15px;
-        }
-
-        .sidebar-nav .nav-link {
-            color: rgba(255,255,255,0.7);
-            transition: all 0.3s ease;
-        }
-
-        .sidebar-nav .nav-link:hover,
-        .sidebar-nav .nav-link.active {
-            color: white;
-            background-color: rgba(255,255,255,0.1);
-        }
-
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .status-good {
-            background-color: #2ecc71;
-        }
-
-        .status-warning {
-            background-color: #f39c12;
-        }
-
-        .status-critical {
-            background-color: #e74c3c;
+        .threat-count {
+            font-weight: bold;
+            color: #e74c3c;
         }
     </style>
 </head>
 <body>
-    <div class="dashboard-container">
-        <div class="sidebar">
-            <h3 class="mb-4">CrowdSec</h3>
-            <nav class="sidebar-nav">
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#">
-                            <i class="bi bi-speedometer2 me-2"></i>
-                            Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">
-                            <i class="bi bi-shield-check me-2"></i>
-                            Security Overview
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">
-                            <i class="bi bi-graph-up me-2"></i>
-                            Threat Analysis
-                        </a>
-                    </li>
-                </ul>
-            </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="text-center my-4">CrowdSec Security Metrics</h1>
+            </div>
         </div>
 
-        <main class="main-content">
-            <div class="row">
-                <div class="col-12">
-                    <h1 class="mb-4">Security Metrics Dashboard</h1>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="dashboard-card">
-                        <div class="metric-header">
-                            <h5 class="m-0">System Status</h5>
-                            <span class="status-indicator status-good"></span>
-                        </div>
-                        <div class="metric-body">
-                            <div id="system-uptime">Loading...</div>
-                            <div id="system-load">Loading...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="dashboard-card">
-                        <div class="metric-header">
-                            <h5 class="m-0">Resource Utilization</h5>
-                            <span class="status-indicator status-warning"></span>
-                        </div>
-                        <div class="metric-body">
-                            <div id="memory-usage">Loading...</div>
-                            <div id="disk-usage">Loading...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="dashboard-card">
-                        <div class="metric-header">
-                            <h5 class="m-0">Security Overview</h5>
-                            <span class="status-indicator status-critical"></span>
-                        </div>
-                        <div class="metric-body">
-                            <div id="total-blocks">Loading...</div>
-                            <div id="top-threats">Loading...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row mt-4">
-                <div class="col-md-8">
-                    <div class="dashboard-card">
-                        <div class="metric-header">
-                            <h5 class="m-0">Blocked Attempts by Reason</h5>
-                        </div>
-                        <div class="metric-body">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="dashboard-card">
+                    <div class="p-3">
+                        <h3 class="mb-3">Top Security Threats</h3>
+                        <div class="chart-container">
                             <canvas id="crowdsecBlocksChart"></canvas>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="col-md-4">
-                    <div class="dashboard-card">
-                        <div class="metric-header">
-                            <h5 class="m-0">Top Blocking Reasons</h5>
-                        </div>
-                        <div class="metric-body">
-                            <table class="table" id="top-decisions-table">
-                                <thead>
-                                    <tr>
-                                        <th>Reason</th>
-                                        <th>Count</th>
-                                        <th>%</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="top-decisions-body">
-                                    <tr><td colspan="3">Loading...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="dashboard-card">
+                    <div class="p-3">
+                        <h3 class="mb-3">Threat Details</h3>
+                        <div id="threat-details"></div>
                     </div>
                 </div>
             </div>
-        </main>
+        </div>
     </div>
 
     <script>
-        // Robust localStorage handling
-        const safeLocalStorage = {
-            getItem: function(key) {
-                try {
-                    return localStorage.getItem(key);
-                } catch (e) {
-                    console.warn('localStorage access denied:', e);
-                    return null;
-                }
-            },
-            setItem: function(key, value) {
-                try {
-                    localStorage.setItem(key, value);
-                } catch (e) {
-                    console.warn('localStorage access denied:', e);
-                }
-            }
-        };
-
-        // Fetch System Metrics
-        async function fetchSystemMetrics() {
-            try {
-                const response = await fetch('/api/system-metrics');
-                const metrics = await response.json();
-
-                document.getElementById('system-uptime').innerHTML = 
-                    `<strong>Uptime:</strong> ${metrics.uptime}`;
-                document.getElementById('system-load').innerHTML = 
-                    `<strong>Load Average:</strong> ${metrics.loadAverage}`;
-                
-                document.getElementById('memory-usage').innerHTML = 
-                    `<strong>Memory:</strong> ${metrics.memory.used} / ${metrics.memory.total}`;
-                document.getElementById('disk-usage').innerHTML = 
-                    `<strong>Disk:</strong> ${metrics.disk.used} / ${metrics.disk.total} (${metrics.disk.usePercentage})`;
-            } catch (error) {
-                console.error('Failed to fetch system metrics:', error);
-            }
-        }
-
-        // Fetch CrowdSec Metrics
+        // Fetch and Render CrowdSec Metrics
         async function fetchCrowdSecMetrics() {
             try {
                 const response = await fetch('/api/crowdsec-metrics');
                 const metrics = await response.json();
 
-                // Update total blocks
-                const totalBlocks = metrics.data.reduce((a, b) => a + b, 0);
-                document.getElementById('total-blocks').innerHTML = 
-                    `<strong>Total Blocked Attempts:</strong> ${totalBlocks}`;
-
                 // Create chart for CrowdSec decisions
                 const ctx = document.getElementById('crowdsecBlocksChart').getContext('2d');
-                new Chart(ctx, {
+                
+                // Destroy existing chart if it exists
+                if (window.crowdsecChart instanceof Chart) {
+                    window.crowdsecChart.destroy();
+                }
+
+                // Create gradient colors
+                const gradientColors = [
+                    'rgba(231, 76, 60, 0.7)',   // Alizarin Red
+                    'rgba(52, 152, 219, 0.7)', // Peter River Blue
+                    'rgba(46, 204, 113, 0.7)', // Emerald Green
+                    'rgba(241, 196, 15, 0.7)', // Sunflower Yellow
+                    'rgba(52, 73, 94, 0.7)'    // Wet Asphalt
+                ];
+
+                window.crowdsecChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: metrics.labels,
                         datasets: [{
                             label: 'Blocked Attempts',
                             data: metrics.data,
-                            backgroundColor: [
-                                'rgba(54, 162, 235, 0.6)',
-                                'rgba(255, 99, 132, 0.6)',
-                                'rgba(75, 192, 192, 0.6)',
-                                'rgba(255, 206, 86, 0.6)',
-                                'rgba(153, 102, 255, 0.6)'
-                            ],
-                            borderColor: [
-                                'rgba(54, 162, 235, 1)',
-                                'rgba(255, 99, 132, 1)',
-                                'rgba(75, 192, 192, 1)',
-                                'rgba(255, 206, 86, 1)',
-                                'rgba(153, 102, 255, 1)'
-                            ],
+                            backgroundColor: gradientColors,
+                            borderColor: gradientColors.map(color => color.replace('0.7)', '1)')),
                             borderWidth: 1
                         }]
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
                         scales: {
                             y: {
                                 beginAtZero: true,
@@ -300,34 +134,38 @@
                                     text: 'Number of Blocked Attempts'
                                 }
                             }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.parsed.y;
+                                        const percentage = metrics.percentages[context.dataIndex];
+                                        return `${value} blocks (${percentage}%)`;
+                                    }
+                                }
+                            }
                         }
                     }
                 });
 
-                // Populate top decisions table
-                const topDecisionsBody = document.getElementById('top-decisions-body');
-                topDecisionsBody.innerHTML = metrics.labels.map((reason, index) => `
-                    <tr>
-                        <td>${reason}</td>
-                        <td>${metrics.data[index]}</td>
-                        <td>${metrics.percentages[index]}%</td>
-                    </tr>
+                // Populate threat details
+                const threatDetailsContainer = document.getElementById('threat-details');
+                threatDetailsContainer.innerHTML = metrics.labels.map((reason, index) => `
+                    <div class="threat-detail">
+                        <span>${reason}</span>
+                        <span class="threat-count">${metrics.data[index]} blocks (${metrics.percentages[index]}%)</span>
+                    </div>
                 `).join('');
-
-                // Update top threats
-                document.getElementById('top-threats').innerHTML = 
-                    `<strong>Top Threat:</strong> ${metrics.labels[0]}`;
             } catch (error) {
                 console.error('Failed to fetch CrowdSec metrics:', error);
             }
         }
 
         // Initial fetch
-        fetchSystemMetrics();
         fetchCrowdSecMetrics();
 
-        // Periodic updates
-        setInterval(fetchSystemMetrics, 30000);
+        // Periodic updates every minute
         setInterval(fetchCrowdSecMetrics, 60000);
     </script>
 </body>
