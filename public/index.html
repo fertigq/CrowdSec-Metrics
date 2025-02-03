@@ -2,83 +2,138 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>System Metrics Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrowdSec Metrics Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            padding: 20px; 
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Arial', sans-serif;
         }
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+        .dashboard-card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            padding: 20px;
+            transition: transform 0.3s ease;
         }
-        .metric-card {
-            border: 1px solid #ddd;
-            padding: 15px;
-            border-radius: 8px;
+        .dashboard-card:hover {
+            transform: scale(1.02);
+        }
+        .chart-container {
+            min-height: 300px;
+        }
+        #darkModeToggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
         }
     </style>
 </head>
 <body>
-    <h1>System Metrics Dashboard</h1>
-    
-    <div class="metrics-grid">
-        <div class="metric-card">
-            <h2>Uptime</h2>
-            <pre id="uptime-info">Loading...</pre>
-        </div>
+    <div class="container-fluid mt-4">
+        <h1 class="text-center mb-4">CrowdSec Metrics Dashboard</h1>
         
-        <div class="metric-card">
-            <h2>Load Average</h2>
-            <pre id="load-average">Loading...</pre>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="dashboard-card">
+                    <h3>System Uptime</h3>
+                    <pre id="uptime-info" class="mb-0">Loading...</pre>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="dashboard-card">
+                    <h3>Load Average</h3>
+                    <pre id="load-average" class="mb-0">Loading...</pre>
+                </div>
+            </div>
         </div>
-        
-        <div class="metric-card">
-            <h2>CPU Usage</h2>
-            <pre id="cpu-usage">Loading...</pre>
-        </div>
-        
-        <div class="metric-card">
-            <h2>Memory Usage</h2>
-            <pre id="memory-usage">Loading...</pre>
-        </div>
-        
-        <div class="metric-card">
-            <h2>Disk Usage</h2>
-            <pre id="disk-usage">Loading...</pre>
-        </div>
-        
-        <div class="metric-card">
-            <h2>Network Connections</h2>
-            <pre id="network-connections">Loading...</pre>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="dashboard-card chart-container">
+                    <h3>CrowdSec Blocked Attempts</h3>
+                    <canvas id="crowdsecBlocksChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
+        // Fetch System Metrics
         async function fetchSystemMetrics() {
             try {
                 const response = await fetch('/api/system-metrics');
                 const metrics = await response.json();
 
-                // Update metric displays
                 document.getElementById('uptime-info').textContent = metrics.uptime;
                 document.getElementById('load-average').textContent = metrics.loadAverage;
-                document.getElementById('cpu-usage').textContent = metrics.cpu;
-                document.getElementById('memory-usage').textContent = metrics.memory;
-                document.getElementById('disk-usage').textContent = metrics.disk;
-                document.getElementById('network-connections').textContent = metrics.network;
             } catch (error) {
-                console.error('Failed to fetch metrics:', error);
+                console.error('Failed to fetch system metrics:', error);
             }
         }
 
-        // Fetch metrics immediately and then every 30 seconds
+        // Fetch CrowdSec Metrics
+        async function fetchCrowdSecMetrics() {
+            try {
+                const response = await fetch('/api/crowdsec-metrics');
+                const metrics = await response.json();
+
+                // Create chart for CrowdSec decisions
+                const ctx = document.getElementById('crowdsecBlocksChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: metrics.labels,
+                        datasets: [{
+                            label: 'Blocked Attempts',
+                            data: metrics.data,
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.6)',
+                                'rgba(54, 162, 235, 0.6)',
+                                'rgba(255, 206, 86, 0.6)',
+                                'rgba(75, 192, 192, 0.6)',
+                                'rgba(153, 102, 255, 0.6)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(153, 102, 255, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Blocked Attempts'
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to fetch CrowdSec metrics:', error);
+            }
+        }
+
+        // Initial fetch
         fetchSystemMetrics();
+        fetchCrowdSecMetrics();
+
+        // Periodic updates
         setInterval(fetchSystemMetrics, 30000);
+        setInterval(fetchCrowdSecMetrics, 60000);
     </script>
 </body>
 </html>
