@@ -1,0 +1,24 @@
+{
+  "name": "crowdsec-metrics-dashboard",
+  "version": "1.0.0",
+  "description": "A lightweight metrics visualization tool for CrowdSec installations",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "echo 'No build step required' && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "dotenv": "^10.0.0",
+    "chart.js": "^3.5.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-chartjs-2": "^3.0.4"
+  },
+  "devDependencies": {
+    "@types/react": "^17.0.11",
+    "@types/react-dom": "^17.0.7",
+    "typescript": "^4.3.4"
+  }
+}
+
