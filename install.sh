@@ -6,18 +6,23 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-# Create directory
+# Create directory and user
 mkdir -p /opt/crowdsec-metrics
-cd /opt/crowdsec-metrics
+useradd -r -s /bin/false crowdsec-dashboard
 
 # Copy files
 cp server.js /opt/crowdsec-metrics/
 mkdir -p /opt/crowdsec-metrics/public
-cp public/index.html /opt/crowdsec-metrics/public/
+cp -r public/* /opt/crowdsec-metrics/public/
+cp -r src /opt/crowdsec-metrics/
 
 # Install dependencies
+cd /opt/crowdsec-metrics
 npm init -y
-npm install express dotenv
+npm install express dotenv react react-dom react-chartjs-2 chart.js
+
+# Build React app
+npm run build
 
 # Create .env file
 cat > /opt/crowdsec-metrics/.env << EOL
@@ -25,22 +30,16 @@ PORT=3456
 HOST=0.0.0.0
 EOL
 
-# Create systemd service file
-cat > /etc/systemd/system/crowdsec-metrics.service << EOL
-[Unit]
-Description=CrowdSec Metrics Dashboard
-After=network.target
+# Copy systemd service file
+cp crowdsec-metrics.service /etc/systemd/system/
 
-[Service]
-ExecStart=/usr/bin/node /opt/crowdsec-metrics/server.js
-Restart=always
-User=root
-Environment=NODE_ENV=production
-WorkingDirectory=/opt/crowdsec-metrics
+# Set permissions
+chown -R crowdsec-dashboard:crowdsec-dashboard /opt/crowdsec-metrics
+chmod 750 /opt/crowdsec-metrics
 
-[Install]
-WantedBy=multi-user.target
-EOL
+# Configure sudo access for metrics commands
+echo "crowdsec-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cscli metrics, /usr/bin/docker exec crowdsec cscli metrics" > /etc/sudoers.d/crowdsec-dashboard
+chmod 0440 /etc/sudoers.d/crowdsec-dashboard
 
 # Reload systemd, enable and start the service
 systemctl daemon-reload
